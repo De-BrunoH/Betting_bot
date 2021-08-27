@@ -1,8 +1,15 @@
+from betting.broker_ifortuna import IFortuna
+
+
 ACCOUNTS_IFORTUNA = [
-    {'name': 'Brunis', 'password': 'Sigmabet123', 'bet_amount': 0}
+    {'name': 'Brunis', 'password': 'Sigmabet123', 'bet_amount': 100}
 ]
 
 ACCOUNTS_DOXXBET = []
+
+BROKERS = {
+    'IFortuna': (IFortuna(), ACCOUNTS_IFORTUNA)
+}
 
 # ======================
 # COMMAND PARTS

@@ -1,28 +1,35 @@
-from better_config import ACCOUNTS_IFORTUNA, ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS
-from broker_ifortuna import IFortuna
-from selenium.webdriver.chrome.webdriver import WebDriver
-from selenium.webdriver.common.keys import Keys
+from multiprocessing import Pool
+from betting.better_config import BROKERS, ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS
+
 
 class Better:
-    driver = None
-    brokers = {
-        'IFortuna': (IFortuna(), ACCOUNTS_IFORTUNA)
-    }
     
-    def __init__(self, browser_driver: WebDriver) -> None:
-        self.driver = browser_driver
+    def __init__(self) -> None:
+        self.brokers = BROKERS
+        self.status_messages = []
 
-    def process_bet(self, command: str) -> None:
+    def bet_all_accounts(self, command: str) -> None:
         bet_info = {}
         try:
             bet_info = self._process_bet_command(command)
         except Exception as e:
             # this will send error to discord
             print(e)
+        all_accounts = 0
         for broker, accounts in self.brokers.values():
-            broker.setup_broker(self.driver)
+            all_accounts += len(accounts)
+        pool = Pool(processes=3)
+        for broker, accounts in self.brokers.values():
             for account in accounts:
-                broker.bet(self.driver, account['name'], account['password'], bet_info)
+                pool.apply_async(broker.bet, args=(account, bet_info), callback=self.status_messages_update)
+        pool.close()
+        pool.join()
+
+    def status_messages_update(self, message_data: dict) -> None:
+        self.status_messages.append(message_data)
+    
+    def clear_status_messages(self) -> None:
+        self.status_messages = []
 
     def _process_bet_command(self, command: str) -> dict:
         ''' Priklad: Sport\n x vs y \n na co stavit (napr: 'pocet golov')\n kolko (napr: 'menej ako (2.5)') '''
@@ -37,13 +44,4 @@ class Better:
             raise Exception('Error: Bet not supported.')
         return {'event': event, 'bet': bet, 'specs': specs}
 
-        
-
-
     
-            
-
-
-
-
-

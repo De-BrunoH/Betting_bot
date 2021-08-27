@@ -4,9 +4,9 @@ from time import sleep
 from selenium import webdriver
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.keys import Keys
-import discord
 
-command = 'futbal\nVratimov\nZápas: počet gólov\nMenej ako (2.5)'
+
+command = 'futbal\nASO Chlef FC\nZápas: počet gólov\nViac ako (2.5)'
 
 # FUTBAL
 # banner vsetkych stavok
