@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 from time import sleep
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -46,13 +46,29 @@ class IFortuna():
             self._login(driver, account['name'], account['password'])
             sleep(13)
             self._navigate_to_event(driver, bet_info['event'])
-            self._place_bet(driver, bet_info, account['bet_amount'])
-            # dorobit status report vycita ci bolo podane atd az ekd to ale bude fungovat opovaz sa to pisat predtym
-            # self._create_status_message(driver, bet_info, account)
-            self._logout(driver)      
+            confirmation_img, bet_rate = self._place_bet(driver, bet_info, account['bet_amount'])
+            bet_report = self._create_bet_report(bet_info, account, bet_rate, confirmation_img)
+            self._logout(driver)
+            return bet_report
         except Exception as e:
             print('Something went wrong. [IFortuna broker]')
             print(e)
+            return {}
+        finally:
+            driver.close()
+    
+    def _create_bet_report(self, bet_info: dict, account: dict, 
+                           bet_rate: float, confirmation_img: str) -> dict:
+        return {
+            **bet_info,
+            'broker': 'IFortuna',
+            'allocation': account['bet_amount'],
+            'bet_rate': bet_rate,
+            'possible_win': float(account['bet_amount']) * bet_rate,
+            'confirmation_img': confirmation_img,
+            'error': None
+        }
+        
 
     def _send_keys_reliably(self, input_field, keys: str) -> None:
         while input_field.get_property('value') != keys:
@@ -85,7 +101,7 @@ class IFortuna():
         except:
             raise Exception('IFortuna error: control over your event name, else this event is not available')
 
-    def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> None:
+    def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
         bet = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + bet_info['specs'] + '"]'
         wait_for_bet = WebDriverWait(driver, 1200)
         try:
@@ -93,6 +109,7 @@ class IFortuna():
         except:
             print('Ifortuna error: bet not found after 20 minutes')
             return
+        bet_rate = float(driver.find_element_by_xpath(bet + '/span[@class="odds_button__value"]/span').text)
         sleep(2) # for element to be clickable
         bet_button.click()
         wait_bet_window = WebDriverWait(driver, 3)
@@ -102,6 +119,10 @@ class IFortuna():
         if bet_button.text.strip() == 'PRIJAŤ ZMENY':
             bet_button.click()
         bet_button.click()
+        sleep(1)
+        driver.save_screenshot('./betting/tmp_screenshots/bet_confirmation.png')
+        return './betting/tmp_screenshots/bet_confirmation.png', bet_rate
+
 
     def _logout(self, driver: WebDriver) -> None:
         account_banner = driver.find_element_by_xpath('//*[@id="app"]//div[@class="user_panel__info_user_box"]')

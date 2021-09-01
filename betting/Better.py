@@ -1,4 +1,5 @@
 from multiprocessing import Pool
+from typing import List
 from betting.better_config import BROKERS, ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS
 from asgiref.sync import async_to_sync
 
@@ -10,7 +11,7 @@ class Better:
         self.brokers = BROKERS
         self.status_messages = []
 
-    def bet_all_accounts(self, command: str) -> None:
+    def bet_all_accounts(self, command: str) -> List[dict]:
         bet_info = {}
         try:
             bet_info = self._process_bet_command(command)
@@ -33,6 +34,9 @@ class Better:
                 )
         pool.close()
         pool.join()
+        run_reports = self.status_messages
+        self.clear_status_messages()
+        return run_reports
 
     def status_messages_update(self, message_data: dict) -> None:
         self.status_messages.append(message_data)
@@ -51,6 +55,6 @@ class Better:
             raise Exception('Error: Sport not supported.')
         if bet not in ALLOWED_BETS_PER_SPORT[sport]:
             raise Exception('Error: Bet not supported.')
-        return {'event': event, 'bet': bet, 'specs': specs}
+        return {'event': event, 'bet': bet, 'specs': specs, 'sport': sport}
 
     
