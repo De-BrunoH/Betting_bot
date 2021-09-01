@@ -13,8 +13,8 @@ class Bet(Cog):
         await ctx.channel.send(f'Hello {ctx.author.mention}!')
 
     @command(name='bet', aliases=('b',))
-    async def place_bets_all_accounts(self, ctx: Context, command: str):
-        await sync_to_async(self.bot.better.bet_all_accounts)(self.bot, command)
+    async def place_bets_all_accounts(self, ctx: Context, *, arg):
+        await sync_to_async(self.bot.better.bet_all_accounts)(arg)
         self.bot.better.clear_status_messages()
 
     @Cog.listener()

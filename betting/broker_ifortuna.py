@@ -1,5 +1,4 @@
 from typing import Optional
-from my_discord.bot.dc_bot import Bet_dc_bot
 from time import sleep
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -25,8 +24,10 @@ class IFortuna():
 
     def find_event(self, event: str) -> Optional[str]:
         driver = webdriver.Safari()
+        driver.set_window_size(1200, 800)
         driver.get(self.base_link)
         try:
+            sleep(1)
             self._navigate_to_event(driver, event)
             sleep(2)
             img_path = './betting/tmp_screenshots/IFortuna_find_event.png'
@@ -34,6 +35,8 @@ class IFortuna():
             return img_path
         except:
             return None
+        finally:
+            driver.close()
     
     def bet(self, account: dict, bet_info: dict) -> dict:
         try:
@@ -81,7 +84,6 @@ class IFortuna():
             search_result.click()
         except:
             raise Exception('IFortuna error: control over your event name, else this event is not available')
-        
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> None:
         bet = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + bet_info['specs'] + '"]'

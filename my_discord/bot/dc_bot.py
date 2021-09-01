@@ -5,8 +5,6 @@ import discord
 from betting.Better import Better
 from my_discord.bot.dc_bot_config import TOKEN
 from glob import glob
-from selenium import webdriver
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from discord.ext.commands import Bot, CommandNotFound
 
 DC_BOT_PREFIX = '$'
@@ -38,8 +36,8 @@ class Bet_dc_bot(Bot):
         self.cogs_ready = Ready()
         self.guild = None
         self.stdout = None
-        self.better = Better()
-        self.legit_users = [self.get_user_info(user_id) for user_id in USERS_IDS]
+        self.better = Better(self)
+        
 
         print('Running bot...')
         super().__init__(command_prefix=DC_BOT_PREFIX, owner_ids=OWNER_ID,)
@@ -80,6 +78,7 @@ class Bet_dc_bot(Bot):
     async def on_ready(self):
         if not self.ready:
             
+            self.legit_users = [await self.fetch_user(user_id) for user_id in USERS_IDS]
             self.guild = self.get_guild(SERVER_ID)
             self.stdout = self.get_channel(SERVER_CHANNEL_ID)
 

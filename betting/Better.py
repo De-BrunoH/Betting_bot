@@ -1,11 +1,11 @@
 from multiprocessing import Pool
-from my_discord.bot.dc_bot import Bet_dc_bot
 from betting.better_config import BROKERS, ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS
+from asgiref.sync import async_to_sync
 
 
 class Better:
     
-    def __init__(self, bot: Bet_dc_bot) -> None:
+    def __init__(self, bot) -> None:
         self.bot = bot
         self.brokers = BROKERS
         self.status_messages = []
@@ -18,22 +18,19 @@ class Better:
             # this will send error to discord
             self.bot.stdout.send(e)
 
-        pool = Pool(processes=3)
-        all_accounts = 0
+        pool = Pool(processes=len(self.brokers.keys()))
         brokers_event_results = {}
-        for broker, accounts in self.brokers.values():
-            all_accounts += len(accounts)
-            brokers_event_results[str(broker)] = pool.apply_async(broker.find_event(bet_info['event'])).get()
-        brokers_to_bet = self.bot.send_for_approval(brokers_event_results)
+        for broker, _ in self.brokers.values():
+            brokers_event_results[str(broker)] = pool.apply_async(broker.find_event, (bet_info['event'],)).get()
+        brokers_to_bet = async_to_sync(self.bot.send_for_approval)(brokers_event_results)
         
-        for broker, accounts in self.brokers.values():
+        for broker, account in self.brokers.values():
             if brokers_to_bet[str(broker)]:
-                for account in accounts:
-                    pool.apply_async(
-                        broker.bet, 
-                        args=(account, bet_info), 
-                        callback=self.status_messages_update
-                    )
+                pool.apply_async(
+                    broker.bet, 
+                    args=(account, bet_info), 
+                    callback=self.status_messages_update
+                )
         pool.close()
         pool.join()
 
