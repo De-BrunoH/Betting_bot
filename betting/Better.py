@@ -1,10 +1,12 @@
 from multiprocessing import Pool
+from my_discord.bot.dc_bot import Bet_dc_bot
 from betting.better_config import BROKERS, ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS
 
 
 class Better:
     
-    def __init__(self) -> None:
+    def __init__(self, bot: Bet_dc_bot) -> None:
+        self.bot = bot
         self.brokers = BROKERS
         self.status_messages = []
 
@@ -15,6 +17,9 @@ class Better:
         except Exception as e:
             # this will send error to discord
             print(e)
+
+        
+
         all_accounts = 0
         for broker, accounts in self.brokers.values():
             all_accounts += len(accounts)
