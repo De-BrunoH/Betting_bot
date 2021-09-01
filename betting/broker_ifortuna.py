@@ -1,3 +1,4 @@
+from typing import Optional
 from my_discord.bot.dc_bot import Bet_dc_bot
 from time import sleep
 from selenium import webdriver
@@ -9,11 +10,7 @@ from selenium.webdriver.common.by import By
 
 
 # TODO:
-#   + prerobit lokalizaciu elementov na stabilnejsie veci ako napriklad id
-#   + prerobit sleep() volania na presenceOfElementLocated (vid internet)
-#   + prejdi si kod zisti kde mozu nastat chyby a pacni tam try bloky nech to nespadne
 #   + sprav cheatsheet pre zavadzanie prikazov a spravne nakonfiguruj pre kazdy sport kontrolu prikazov nech maju lepsi fedback
-#   + discordove rozhranie sprav nech to vies testnut cez discord
 #   + sprav Doxxbet
 
 
@@ -22,18 +19,37 @@ class IFortuna():
 
     def __init__(self) -> None:
         return
-
-    def is_right_bet(self, bot: Bet_dc_bot) -> bool:
-        pass
     
-    def bet(self, account: dict, bet_info: dict) -> None:
+    def __str__(self) -> str:
+        return 'IFortuna'
+
+    def find_event(self, event: str) -> Optional[str]:
         driver = webdriver.Safari()
         driver.get(self.base_link)
-        driver.set_window_size(1500,800)
-        self._login(driver, account['name'], account['password'])
-        self._navigate_to_event(driver, bet_info['event'])
-        self._place_bet(driver, bet_info, account['bet_amount'])
-        self._logout(driver)
+        try:
+            self._navigate_to_event(driver, event)
+            sleep(2)
+            img_path = './betting/tmp_screenshots/IFortuna_find_event.png'
+            driver.save_screenshot(img_path)
+            return img_path
+        except:
+            return None
+    
+    def bet(self, account: dict, bet_info: dict) -> dict:
+        try:
+            driver = webdriver.Safari()
+            driver.get(self.base_link)
+            driver.set_window_size(1500,800)
+            self._login(driver, account['name'], account['password'])
+            sleep(13)
+            self._navigate_to_event(driver, bet_info['event'])
+            self._place_bet(driver, bet_info, account['bet_amount'])
+            # dorobit status report vycita ci bolo podane atd az ekd to ale bude fungovat opovaz sa to pisat predtym
+            # self._create_status_message(driver, bet_info, account)
+            self._logout(driver)      
+        except Exception as e:
+            print('Something went wrong. [IFortuna broker]')
+            print(e)
 
     def _send_keys_reliably(self, input_field, keys: str) -> None:
         while input_field.get_property('value') != keys:
@@ -54,7 +70,6 @@ class IFortuna():
         login_button.click()
 
     def _navigate_to_event(self, driver: WebDriver, event: str) -> None:
-        sleep(13)
         search_field_button = driver.find_element_by_xpath('//*[@id="app"]//div[@class="view-menu__search-wrapper"]/button')
         search_field_button.click()
         wait_for_search_field = WebDriverWait(driver, 2)
@@ -65,8 +80,7 @@ class IFortuna():
             search_result = wait_for_search.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[1]')))
             search_result.click()
         except:
-            print('IFortuna error: event name')
-            #raise Exception('IFortuna error: control over your event name, else this match is not available')
+            raise Exception('IFortuna error: control over your event name, else this event is not available')
         
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> None:

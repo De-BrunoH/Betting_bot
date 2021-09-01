@@ -16,17 +16,24 @@ class Better:
             bet_info = self._process_bet_command(command)
         except Exception as e:
             # this will send error to discord
-            print(e)
+            self.bot.stdout.send(e)
 
-        
-
+        pool = Pool(processes=3)
         all_accounts = 0
+        brokers_event_results = {}
         for broker, accounts in self.brokers.values():
             all_accounts += len(accounts)
-        pool = Pool(processes=3)
+            brokers_event_results[str(broker)] = pool.apply_async(broker.find_event(bet_info['event'])).get()
+        brokers_to_bet = self.bot.send_for_approval(brokers_event_results)
+        
         for broker, accounts in self.brokers.values():
-            for account in accounts:
-                pool.apply_async(broker.bet, args=(account, bet_info), callback=self.status_messages_update)
+            if brokers_to_bet[str(broker)]:
+                for account in accounts:
+                    pool.apply_async(
+                        broker.bet, 
+                        args=(account, bet_info), 
+                        callback=self.status_messages_update
+                    )
         pool.close()
         pool.join()
 

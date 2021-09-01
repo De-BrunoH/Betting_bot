@@ -7,6 +7,6 @@ from my_discord.bot.dc_bot import Bet_dc_bot
 TEST_COMMAND = 'futbal\nPerth SC\nZápas: počet gólov\nMenej ako (3.5)'
 
 if __name__ == '__main__':
-    #bot = Bet_dc_bot()
-    #bot.run()
-    IFortuna().bet(ACCOUNTS_IFORTUNA[0], Better()._process_bet_command(TEST_COMMAND))
+    bot = Bet_dc_bot()
+    bot.run()
+    #IFortuna().bet(ACCOUNTS_IFORTUNA[0], Better()._process_bet_command(TEST_COMMAND))

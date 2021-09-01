@@ -1,4 +1,7 @@
 from asyncio import sleep
+import asyncio
+
+import discord
 from betting.Better import Better
 from my_discord.bot.dc_bot_config import TOKEN
 from glob import glob
@@ -10,6 +13,7 @@ DC_BOT_PREFIX = '$'
 OWNER_ID = '291691766250471435'
 SERVER_ID = 826572526573322270
 SERVER_CHANNEL_ID = 879321122259234886
+USERS_IDS = [377516833764278283, 291691766250471435] # Alex, Bruno
 COGS = [path.split('/')[-1][:-3] for path in glob('./my_discord/cogs/*.py')]
 
 
@@ -35,6 +39,7 @@ class Bet_dc_bot(Bot):
         self.guild = None
         self.stdout = None
         self.better = Better()
+        self.legit_users = [self.get_user_info(user_id) for user_id in USERS_IDS]
 
         print('Running bot...')
         super().__init__(command_prefix=DC_BOT_PREFIX, owner_ids=OWNER_ID,)
@@ -91,7 +96,35 @@ class Bet_dc_bot(Bot):
         if not message.author.bot:
             await self.process_commands(message)
 
+    async def send_for_approval(self, brokers_event: dict) -> dict:
+        approval_flags = {}
+        for broker, event_img in brokers_event.items():
+            approval_flags[broker] = event_img is None or await self.get_approval(broker, event_img)
+        return approval_flags
 
+    async def get_approval(self, broker: str, event_img: str) -> bool:
+        await self.stdout.send(file=discord.File(event_img))
+        message = await self.stdout.send(f'Broker: {broker}\nDECISION HERE')
+        thumb_up = '👍'
+        thumb_down = '👎'
+        await message.add_reaction(thumb_up)
+        await message.add_reaction(thumb_down)
+        def check(reaction, user):
+            return user in self.legit_users and str(
+                reaction.emoji) in [thumb_up, thumb_down]
+        try:
+            reaction, user = await self.wait_for('reaction_add', check=check, timeout=600)
+        except asyncio.TimeoutError:
+            self.stdout.send(f'Broker {broker}: You haven\'t made a decision, the bet is closed.')
+            return False
+        if str(reaction.emoji) == thumb_up:
+            await self.stdout.send(f'Broker {broker}: Betting...')
+            return True
+        if str(reaction.emoji) == thumb_down:
+            await self.stdout.send(f'Broker {broker}: The bet is closed.')
+            return False
+        
+        
 
 
 
