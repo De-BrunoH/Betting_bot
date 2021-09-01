@@ -2,7 +2,7 @@ from betting.broker_ifortuna import IFortuna
 
 
 ACCOUNTS_IFORTUNA = [
-    {'name': 'Brunis', 'password': 'Sigmabet123', 'bet_amount': 100}
+    {'name': 'Brunis', 'password': 'Sigmabet123', 'bet_amount': '100'}
 ]
 
 ACCOUNTS_DOXXBET = []
@@ -25,5 +25,9 @@ ALLOWED_SPORTS = {
 # 2
 ALLOWED_BETS_PER_SPORT = {
     'futbal': {'Zápas: počet gólov'}
+}
+
+TEST_COMMAND = {
+
 }
 

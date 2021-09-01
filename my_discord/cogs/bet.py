@@ -13,11 +13,8 @@ class Bet(Cog):
         await ctx.channel.send(f'Hello {ctx.author.mention}!')
 
     @command(name='bet', aliases=('b',))
-    async def place_bets_all_accounts(self, context: Context):
-        await sync_to_async(self.bot.better.bet_all_accounts)(context.fetch_message)
-        # TODO:
-        #   + bet_all_accounts should append messages to better.status_messages
-        #   + in this method should all messages eb send to channel for discord user to inspect 
+    async def place_bets_all_accounts(self, ctx: Context):
+        await sync_to_async(self.bot.better.bet_all_accounts)(self.bot, ctx.fetch_message)
         self.bot.better.clear_status_messages()
 
     @Cog.listener()
