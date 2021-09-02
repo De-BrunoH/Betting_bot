@@ -1,13 +1,16 @@
+from my_discord.cogs.bet import Bet
+from betting.Exceptions.BetRuntimeException import BetRuntimeException
 from multiprocessing import Pool
 from typing import List
 from betting.better_config import BROKERS, ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS
 from asgiref.sync import async_to_sync
+from my_discord.cogs.bet import Bet
 
 
 class Better:
     
-    def __init__(self, bot) -> None:
-        self.bot = bot
+    def __init__(self, cog: Bet) -> None:
+        self.bet_cog = cog
         self.brokers = BROKERS
         self.status_messages = []
 
@@ -17,13 +20,13 @@ class Better:
             bet_info = self._process_bet_command(command)
         except Exception as e:
             # this will send error to discord
-            self.bot.stdout.send(e)
+            self.bet_cog.bot.stdout.send(e)
 
         pool = Pool(processes=len(self.brokers.keys()))
         brokers_event_results = {}
         for broker, _ in self.brokers.values():
             brokers_event_results[str(broker)] = pool.apply_async(broker.find_event, (bet_info['event'],)).get()
-        brokers_to_bet = async_to_sync(self.bot.send_for_approval)(brokers_event_results)
+        brokers_to_bet = async_to_sync(self.bet_cog.send_for_approval)(brokers_event_results, bet_info)
         
         for broker, account in self.brokers.values():
             if brokers_to_bet[str(broker)]:
@@ -32,6 +35,7 @@ class Better:
                     args=(account, bet_info), 
                     callback=self.status_messages_update
                 )
+                
         pool.close()
         pool.join()
         bet_reports = self.status_messages

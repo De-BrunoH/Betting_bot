@@ -21,7 +21,16 @@ ALLOWED_BETS_PER_SPORT = {
     'futbal': {'Zápas: počet gólov'}
 }
 
-TEST_COMMAND = {
+BET_WAIT_TIME = 1200
 
-}
+
+'''
+Prikaz v tvare:
+(kazdy argument na novom riadku)
+$bet
+sport (vsetkos malym)
+timA|timB {alebo} timA {alebo} timB  (len jedna z tychto moznosti (1. preferrable pre peknost reportu))
+kolonka v krotrej stavit  (pri fortune napriklad 'Zápas: počet gólov')
+konkretna stavka v kolonke (napr: 'Menej ako (2.5)' pri fortune dodrzat presny format (1. pismeno velke))
+'''
 

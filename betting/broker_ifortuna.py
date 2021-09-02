@@ -1,3 +1,6 @@
+from betting.better_config import BET_WAIT_TIME
+from betting.Exceptions.BetRuntimeException import BetRuntimeException
+from betting.Exceptions.EventNotFoundException import EventNotFoundException
 from typing import Optional, Tuple
 from time import sleep
 from selenium import webdriver
@@ -6,11 +9,7 @@ from selenium.webdriver.safari.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-
-
-# TODO:
-#   + sprav cheatsheet pre zavadzanie prikazov a spravne nakonfiguruj pre kazdy sport kontrolu prikazov nech maju lepsi fedback
-#   + sprav Doxxbet
+from selenium.common.exceptions import NoSuchElementException
 
 
 class IFortuna():
@@ -22,7 +21,7 @@ class IFortuna():
     def __str__(self) -> str:
         return 'IFortuna'
 
-    def find_event(self, event: str) -> Optional[str]:
+    def find_event(self, event: str) -> str:
         driver = webdriver.Safari()
         driver.set_window_size(1200, 800)
         driver.get(self.base_link)
@@ -30,11 +29,13 @@ class IFortuna():
             sleep(1)
             self._navigate_to_event(driver, event)
             sleep(2)
-            img_path = './betting/tmp_screenshots/IFortuna_find_event.png'
+            img_path = './betting/tmp_screenshots/IFortunaFindEvent.png'
             driver.save_screenshot(img_path)
             return img_path
-        except:
-            return None
+        except NoSuchElementException as e:
+            exception_img = './betting/tmp_screenshots/IFortunaFindEventException.png'
+            driver.save_screenshot(exception_img)
+            raise EventNotFoundException(self.__str__(), event, exception_img, root_message=e.msg)
         finally:
             driver.close()
     
@@ -42,33 +43,21 @@ class IFortuna():
         try:
             driver = webdriver.Safari()
             driver.get(self.base_link)
-            driver.set_window_size(1500,800)
+            driver.set_window_size(1200, 800)
             self._login(driver, account['name'], account['password'])
             sleep(13)
             self._navigate_to_event(driver, bet_info['event'])
             confirmation_img, bet_rate = self._place_bet(driver, bet_info, account['bet_amount'])
-            bet_report = self._create_bet_report(bet_info, account, bet_rate, confirmation_img)
+            bet_report = create_bet_result_report(bet_info, account, bet_rate, confirmation_img)
             self._logout(driver)
             return bet_report
         except Exception as e:
-            print('Something went wrong. [IFortuna broker]')
-            print(e)
-            return {}
+            exception_img = './betting/tmp_screenshots/IFortunaBetRuntimeException.png'
+            driver.save_screenshot(exception_img)
+            return create_bet_exception_report(
+                BetRuntimeException(self.__str__(), bet_info['event'], exception_img, root_message=e.msg))
         finally:
             driver.close()
-    
-    def _create_bet_report(self, bet_info: dict, account: dict, 
-                           bet_rate: float, confirmation_img: str) -> dict:
-        return {
-            **bet_info,
-            'broker': 'IFortuna',
-            'allocation': account['bet_amount'],
-            'bet_rate': bet_rate,
-            'possible_win': float(account['bet_amount']) * bet_rate,
-            'confirmation_img': confirmation_img,
-            'error': None
-        }
-        
 
     def _send_keys_reliably(self, input_field, keys: str) -> None:
         while input_field.get_property('value') != keys:
@@ -93,21 +82,22 @@ class IFortuna():
         search_field_button.click()
         wait_for_search_field = WebDriverWait(driver, 2)
         search_field = wait_for_search_field.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="search-input"]')))
-        self._send_keys_reliably(search_field, event)
+        parsed_event = event.split('|')
+        self._send_keys_reliably(search_field, parsed_event[0])
         wait_for_search = WebDriverWait(driver, 2)
         try:
             search_result = wait_for_search.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[1]')))
             search_result.click()
         except:
-            raise Exception('IFortuna error: control over your event name, else this event is not available')
+            raise Exception(f'Event name can be wrong, or this event is not available at {self.__str__()} broker.')
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
         bet = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + bet_info['specs'] + '"]'
-        wait_for_bet = WebDriverWait(driver, 1200)
+        wait_for_bet = WebDriverWait(driver, BET_WAIT_TIME)
         try:
             bet_button = wait_for_bet.until(ec.visibility_of_element_located((By.XPATH, bet)))
         except:
-            print('Ifortuna error: bet not found after 20 minutes')
+            print(f'Bet not found after {BET_WAIT_TIME // 60} minutes')
             return
         bet_rate = float(driver.find_element_by_xpath(bet + '/span[@class="odds_button__value"]/span').text)
         sleep(2) # for element to be clickable
@@ -121,8 +111,7 @@ class IFortuna():
         bet_button.click()
         sleep(1)
         driver.save_screenshot('./betting/tmp_screenshots/bet_confirmation.png')
-        return './betting/tmp_screenshots/bet_confirmation.png', bet_rate
-
+        return './betting/tmp_screenshots/IFortunaBetConfirmation.png', bet_rate
 
     def _logout(self, driver: WebDriver) -> None:
         account_banner = driver.find_element_by_xpath('//*[@id="app"]//div[@class="user_panel__info_user_box"]')
@@ -131,5 +120,23 @@ class IFortuna():
         actions.move_to_element(account_banner)
         actions.click(logout_button)
         actions.perform()
+
+
+def create_bet_result_report(bet_info: dict, account: dict, 
+                           bet_rate: float, confirmation_img: str) -> dict:
+    return {
+        **bet_info,
+        'broker': 'IFortuna',
+        'allocation': account['bet_amount'],
+        'bet_rate': bet_rate,
+        'possible_win': float(account['bet_amount']) * bet_rate,
+        'confirmation_img': confirmation_img
+    }
+
+def create_bet_exception_report(exception: Exception) -> dict:
+    return {
+        'broker': exception.__str__(),
+        'exception': exception
+    }
 
         
