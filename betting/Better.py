@@ -34,9 +34,9 @@ class Better:
                 )
         pool.close()
         pool.join()
-        run_reports = self.status_messages
+        bet_reports = self.status_messages
         self.clear_status_messages()
-        return run_reports
+        return bet_reports
 
     def status_messages_update(self, message_data: dict) -> None:
         self.status_messages.append(message_data)
