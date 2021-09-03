@@ -4,7 +4,6 @@ from betting.Exceptions.EventNotFoundException import EventNotFoundException
 from betting.Better import Better
 from typing import List, Tuple
 from asgiref.sync import sync_to_async
-from discord.colour import Color
 from my_discord.bot.dc_bot import Bet_dc_bot
 from discord.ext.commands import Cog, command, Context
 from discord import Embed, Colour, File
@@ -30,17 +29,16 @@ class Bet(Cog):
             await self.send_report(report)
             
     async def send_report(self, report: dict) -> None:
-        formated_report, files = await self.format_report(report)
+        formated_report, files = await self.format_bet_report(report)
         await self.bot.stdout.send(files=files, embed=formated_report)
 
     async def format_bet_report(self, report: dict) -> Tuple[Embed, List[File]]:
-        formated_report = Embed()
         if 'exception' in report.keys():
-            return await self.format_bet_exception_report(formated_report, report)
-        return await self.format_bet_result_report(formated_report, report)
+            return await self.format_bet_exception_report(report)
+        return await self.format_bet_result_report(report)
     
-    async def format_bet_result_report(self, formated_report: Embed, report: dict) -> Tuple[Embed, List[File]]:
-        tnail = await self.create_bet_embed_head(formated_report, report, '{} bet result report:'.format(report['broker']))
+    async def format_bet_result_report(self, report: dict) -> Tuple[Embed, List[File]]:
+        formated_report, tnail = await self.create_bet_embed_base(report['broker'], '{} bet result report:'.format(report['broker']))
 
         formated_report.add_field(name='Sport:', value=report['sport'], inline=True)
         formated_report.add_field(name='Event:', value=report['event'], inline=True)
@@ -57,8 +55,8 @@ class Bet(Cog):
         formated_report.set_footer(text='Bet successful!')
         return formated_report, [tnail, confirmation_img]
 
-    async def format_bet_exception_report(self, formated_report: Embed, report: dict) -> Tuple[Embed, List[File]]:
-        tnail = await self.create_bet_embed_head(formated_report, report, '{} bet exception report:'.format(report['broker']))
+    async def format_bet_exception_report(self, report: dict) -> Tuple[Embed, List[File]]:
+        formated_report, tnail = await self.create_bet_embed_base(report['broker'], '{} bet exception report:'.format(report['broker']))
 
         formated_report.add_field(name='Event:', value=report['exception'].event, inline=True)
         formated_report.add_field(name='Exception message:', value=report['exception'].message, inline=True)
@@ -72,16 +70,16 @@ class Bet(Cog):
         formated_report.set_footer(text='Bet skipped.')
         return formated_report, [tnail, exception_img]
 
-    async def create_bet_embed_head(self, formated_report: Embed, broker: str, title: str) -> File:
+    async def create_bet_embed_base(self, broker: str, title: str) -> Tuple[Embed, File]:
         broker_color, broker_logo_path = await self.get_broker_visuals(broker)
-        formated_report = Embed(
+        embed = Embed(
             title = title,
             color = broker_color
         )
         broker_logo = broker_logo_path.split('/')[-1]
         tnail = File(broker_logo_path, filename=broker_logo)
-        formated_report.set_thumbnail(url='attachment://' + broker_logo)
-        return tnail
+        embed.set_thumbnail(url='attachment://' + broker_logo)
+        return embed, tnail
 
     async def get_broker_visuals(self, broker: str) -> Tuple[Colour, str]:
         if broker == 'IFortuna':
@@ -98,14 +96,12 @@ class Bet(Cog):
         return approval_flags
 
     async def get_approval(self, broker: str, event_img: str, bet_info: dict) -> bool:
-        user_decision_embed = Embed()
-        user_decision_message, files = await self.format_user_decision_embed(
-            user_decision_embed, 
+        user_decision_embed, files = await self.create_user_decision_embed(
             broker, 
             event_img, 
             bet_info
         )
-        message = await self.bot.stdout.send(files=files, embed=user_decision_message)
+        message = await self.bot.stdout.send(files=files, embed=user_decision_embed)
         thumb_up = '👍'
         thumb_down = '👎'
         await message.add_reaction(thumb_up)
@@ -126,8 +122,8 @@ class Bet(Cog):
             return False
         return False
 
-    async def create_user_decision_embed(self, embed: Embed, broker: str, event_img_path: str, bet_info: dict) -> Tuple[Embed, List[File]]:
-        tnail = self.create_bet_embed_head(embed, broker, f'{broker} broker bet confirmation:')
+    async def create_user_decision_embed(self, broker: str, event_img_path: str, bet_info: dict) -> Tuple[Embed, List[File]]:
+        embed, tnail = await self.create_bet_embed_base(broker, f'{broker} broker bet confirmation:')
 
         embed.add_field(name='Sport:', value=bet_info['sport'], inline=True)
         embed.add_field(name='Event:', value=bet_info['event'], inline=True)

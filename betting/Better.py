@@ -1,18 +1,29 @@
-from my_discord.cogs.bet import Bet
+from betting.broker_ifortuna import IFortuna
 from betting.Exceptions.BetRuntimeException import BetRuntimeException
 from multiprocessing import Pool
 from typing import List
-from betting.better_config import BROKERS, ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS
+from betting.better_config import ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS, BROKERS_ACCOUNTS
 from asgiref.sync import async_to_sync
-from my_discord.cogs.bet import Bet
 
 
 class Better:
     
-    def __init__(self, cog: Bet) -> None:
-        self.bet_cog = cog
-        self.brokers = BROKERS
+    def __init__(self, dc_bet_cog) -> None:
+        self.bet_cog = dc_bet_cog
+        self.brokers = self._init_brokers(BROKERS_ACCOUNTS)
         self.status_messages = []
+
+    def _init_brokers(self, brokers_accounts: dict) -> dict:
+        inited_brokers = {}
+        for broker, account in brokers_accounts.items():
+            inited_brokers[broker] = (self._init_broker(broker), account)
+        return inited_brokers
+
+    def _init_broker(self, broker: str):
+        if broker == 'IFortuna':
+            return IFortuna()
+        else:
+            print('Init Better Error: broker not found.')
 
     def bet_all_accounts(self, command: str) -> List[dict]:
         bet_info = {}

@@ -1,9 +1,10 @@
-import betting.broker_ifortuna as fortuna
+import betting.broker_ifortuna as f
 
 
-BROKERS = {
-    'IFortuna': (fortuna.IFortuna(), {'name': 'Brunis', 'password': 'Sigmabet123', 'bet_amount': '100'})
+BROKERS_ACCOUNTS = {
+    'IFortuna': {'name': 'Brunis', 'password': 'Sigmabet123', 'bet_amount': '100'}
 }
+
 
 # ======================
 # COMMAND PARTS

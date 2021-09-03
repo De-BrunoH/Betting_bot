@@ -1,6 +1,4 @@
 from asyncio import sleep
-
-import discord
 from my_discord.bot.dc_bot_config import TOKEN
 from glob import glob
 from discord.ext.commands import Bot, CommandNotFound

@@ -21,9 +21,13 @@ class IFortuna():
     def __str__(self) -> str:
         return 'IFortuna'
 
-    def find_event(self, event: str) -> str:
+    def _setup_driver(self) -> WebDriver:
         driver = webdriver.Safari()
         driver.set_window_size(1200, 800)
+        return driver
+
+    def find_event(self, event: str) -> str:
+        driver = self._setup_driver()
         driver.get(self.base_link)
         try:
             sleep(1)
@@ -41,9 +45,8 @@ class IFortuna():
     
     def bet(self, account: dict, bet_info: dict) -> dict:
         try:
-            driver = webdriver.Safari()
+            driver = self._setup_driver()
             driver.get(self.base_link)
-            driver.set_window_size(1200, 800)
             self._login(driver, account['name'], account['password'])
             sleep(13)
             self._navigate_to_event(driver, bet_info['event'])
@@ -86,7 +89,7 @@ class IFortuna():
         self._send_keys_reliably(search_field, parsed_event[0])
         wait_for_search = WebDriverWait(driver, 2)
         try:
-            search_result = wait_for_search.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[1]')))
+            search_result = wait_for_search.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[1]/a[@class="fortuna_search_bar_matches__match_info_wrapper"]')))
             search_result.click()
         except:
             raise Exception(f'Event name can be wrong, or this event is not available at {self.__str__()} broker.')
@@ -97,7 +100,7 @@ class IFortuna():
         try:
             bet_button = wait_for_bet.until(ec.visibility_of_element_located((By.XPATH, bet)))
         except:
-            print(f'Bet not found after {BET_WAIT_TIME // 60} minutes')
+            print(f'Bet not found after {BET_WAIT_TIME // 60} minutes.')
             return
         bet_rate = float(driver.find_element_by_xpath(bet + '/span[@class="odds_button__value"]/span').text)
         sleep(2) # for element to be clickable
@@ -110,8 +113,9 @@ class IFortuna():
             bet_button.click()
         bet_button.click()
         sleep(1)
-        driver.save_screenshot('./betting/tmp_screenshots/bet_confirmation.png')
-        return './betting/tmp_screenshots/IFortunaBetConfirmation.png', bet_rate
+        confirmation_img = './betting/tmp_screenshots/IFortunaBetConfirmation.png'
+        driver.save_screenshot(confirmation_img)
+        return confirmation_img, bet_rate
 
     def _logout(self, driver: WebDriver) -> None:
         account_banner = driver.find_element_by_xpath('//*[@id="app"]//div[@class="user_panel__info_user_box"]')
