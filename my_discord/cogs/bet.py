@@ -1,6 +1,4 @@
 import asyncio
-from betting.broker_ifortuna import create_bet_exception_report
-from betting.Exceptions.EventNotFoundException import EventNotFoundException
 from betting.Better import Better
 from typing import List, Tuple
 from asgiref.sync import sync_to_async
@@ -87,12 +85,12 @@ class Bet(Cog):
 
     async def send_for_approval(self, brokers_event: dict, bet_info: dict) -> dict:
         approval_flags = {}
-        for broker, event_img in brokers_event.items():
-            try:
-                approval_flags[broker] = await self.get_approval(broker, event_img, bet_info)
-            except EventNotFoundException as e:
+        for broker, event_findings in brokers_event.items():
+            if 'exception' not in event_findings.keys():
+                approval_flags[broker] = await self.get_approval(broker, event_findings['event_img'], bet_info)
+            else:
                 approval_flags[broker] = False
-                await self.send_report(sync_to_async(create_bet_exception_report)(e))
+                await self.send_report(event_findings)
         return approval_flags
 
     async def get_approval(self, broker: str, event_img: str, bet_info: dict) -> bool:

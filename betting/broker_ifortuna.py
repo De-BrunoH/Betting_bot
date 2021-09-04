@@ -9,7 +9,6 @@ from selenium.webdriver.safari.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
 
 
 class IFortuna():
@@ -35,11 +34,18 @@ class IFortuna():
             sleep(2)
             img_path = './betting/tmp_screenshots/IFortunaFindEvent.png'
             driver.save_screenshot(img_path)
-            return img_path
-        except NoSuchElementException as e:
+            return {'event_img': img_path}
+        except Exception as e:
             exception_img = './betting/tmp_screenshots/IFortunaFindEventException.png'
             driver.save_screenshot(exception_img)
-            raise EventNotFoundException(self.__str__(), event, exception_img, root_message=e.msg)
+            return create_bet_exception_report(
+                EventNotFoundException(
+                    broker=self.__str__(), 
+                    event=event, 
+                    screenshot_path=exception_img, 
+                    root_message=str(e)
+                )    
+            )
         finally:
             driver.close()
     
@@ -58,7 +64,13 @@ class IFortuna():
             exception_img = './betting/tmp_screenshots/IFortunaBetRuntimeException.png'
             driver.save_screenshot(exception_img)
             return create_bet_exception_report(
-                BetRuntimeException(self.__str__(), bet_info['event'], exception_img, root_message=e.msg))
+                BetRuntimeException(
+                    broker=self.__str__(), 
+                    event=bet_info['event'], 
+                    screenshot_path=exception_img, 
+                    root_message=str(e)
+                )
+            )
         finally:
             driver.close()
 
@@ -139,7 +151,7 @@ def create_bet_result_report(bet_info: dict, account: dict,
 
 def create_bet_exception_report(exception: Exception) -> dict:
     return {
-        'broker': exception.__str__(),
+        'broker': exception.broker,
         'exception': exception
     }
 

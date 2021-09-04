@@ -1,5 +1,4 @@
 from betting.broker_ifortuna import IFortuna
-from betting.Exceptions.BetRuntimeException import BetRuntimeException
 from multiprocessing import Pool
 from typing import List
 from betting.better_config import ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS, BROKERS_ACCOUNTS
@@ -30,13 +29,19 @@ class Better:
         try:
             bet_info = self._process_bet_command(command)
         except Exception as e:
-            # this will send error to discord
             self.bet_cog.bot.stdout.send(e)
+        
+        # add stoping of betting when command is wrong
 
         pool = Pool(processes=len(self.brokers.keys()))
         brokers_event_results = {}
         for broker, _ in self.brokers.values():
-            brokers_event_results[str(broker)] = pool.apply_async(broker.find_event, (bet_info['event'],)).get()
+            brokers_event_results[str(broker)] = pool.apply_async(
+                broker.find_event,
+                args=(bet_info['event'],)
+            )
+        for broker, _ in self.brokers.values():
+            brokers_event_results[str(broker)] = brokers_event_results[str(broker)].get()
         brokers_to_bet = async_to_sync(self.bet_cog.send_for_approval)(brokers_event_results, bet_info)
         
         for broker, account in self.brokers.values():
