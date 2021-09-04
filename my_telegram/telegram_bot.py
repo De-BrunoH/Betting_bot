@@ -1,8 +1,10 @@
 from telethon import TelegramClient, events
+import os
+from keep_alive import keep_alive
 
-api_id = '7662193'
-api_hash = '492ffc256dff3e5c7b5f351d38f59515'
-name = '+421915379988'
+api_id = os.environ['API_ID']
+api_hash = os.environ['API_HASH']
+name = os.environ['PHONE_NUMBER']
 
 client = TelegramClient(name, api_id, api_hash)
 source_channel = -444167156
@@ -11,7 +13,8 @@ source_user = 'me' # sem dam klacovho sefa username
 
 @client.on(events.NewMessage(chats=source_channel, from_users=source_user))
 async def listener(event):
-    await client.forward_messages(entity=dump_channel, messages=event.message)
-    client.get_entity()
+    await client.send_message(entity=dump_channel, message=event.message)
+
 with client:
+    keep_alive()
     client.run_until_disconnected()
