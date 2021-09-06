@@ -1,20 +1,32 @@
-from telethon import TelegramClient, events
+'''from telethon import TelegramClient, events
 import os
 from keep_alive import keep_alive
 
 api_id = os.environ['API_ID']
 api_hash = os.environ['API_HASH']
-name = os.environ['PHONE_NUMBER']
+alex = 'alex'
+bruno = 'bruno'
 
-client = TelegramClient(name, api_id, api_hash)
-source_channel = -444167156
-dump_channel = -585788900 # channel id alexovej groupy pridaj bota posli tu spravu a hotovo zistis cez web telegram ez
-source_user = 'me' # sem dam klacovho sefa username
+client_a = TelegramClient(alex, api_id, api_hash)
+source_channel_a = -1001257344761
+dump_channel_a = -1001322443667
 
-@client.on(events.NewMessage(chats=source_channel, from_users=source_user))
-async def listener(event):
-    await client.send_message(entity=dump_channel, message=event.message)
+client_b = TelegramClient(bruno, api_id, api_hash)
+source_user_b = 'Huzvo'
+source_channel_b = -1001322443667
+dump_channel_b = -568281812
 
-with client:
-    keep_alive()
-    client.run_until_disconnected()
+@client_a.on(events.NewMessage(chats=source_channel_a))
+async def listener_a(event):
+    await client_a.send_message(entity=dump_channel_a, message=event.message)
+
+
+@client_b.on(events.NewMessage(chats=source_channel_b))#, from_users=source_user_b))
+async def listener_b(event):
+    await client_b.send_message(entity=dump_channel_b, message=event.message)
+
+with client_b:
+    with client_a:
+      keep_alive()
+      client_a.run_until_disconnected()
+      client_b.run_until_disconnected()'''

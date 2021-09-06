@@ -132,3 +132,4 @@ dmypy.json
 dc_bot_config.py
 better_config.py
 telegram_config.py
+.DS_store
