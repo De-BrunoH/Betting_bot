@@ -49,7 +49,8 @@ class IFortuna():
             driver = setup_driver()
             driver.get(self.base_link)
             self._login(driver, account['name'], account['password'])
-            sleep(13)
+            wait_for_popup_close = WebDriverWait(driver, 20, 0.1)
+            wait_for_popup_close.until(ec.presence_of_element_located((By.XPATH, '//div[@class="simple_modal simple_modal--hidden simple_modal--with_overlay simple_modal--default  user-message user-message--show user-message__centered  responsible-gaming"]')))
             self._navigate_to_event(driver, bet_info['event'])
             confirmation_img, bet_rate = self._place_bet(driver, bet_info, account['bet_amount'])
             bet_report = create_bet_result_report(bet_info, account, bet_rate, confirmation_img)
@@ -94,7 +95,7 @@ class IFortuna():
         search_field = wait_for_search_field.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="search-input"]')))
         parsed_event = event.split('|')
         self._send_keys_reliably(search_field, parsed_event[0])
-        wait_for_search = WebDriverWait(driver, 2)
+        wait_for_search = WebDriverWait(driver, 0.5, 0.1)
         try:
             search_result = wait_for_search.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[1]/a[@class="fortuna_search_bar_matches__match_info_wrapper"]')))
             search_result.click()
@@ -149,5 +150,3 @@ def create_bet_exception_report(exception: Exception) -> dict:
         'broker': exception.broker,
         'exception': exception
     }
-
-        

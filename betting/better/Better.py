@@ -1,4 +1,4 @@
-from betting.brokers.ifortuna import IFortuna
+from betting.brokers.ifortuna.ifortuna import IFortuna
 from multiprocessing import Pool
 from typing import List
 from betting.better.better_config import ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS, BROKERS_ACCOUNTS

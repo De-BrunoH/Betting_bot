@@ -1,4 +1,4 @@
-from betting.Exceptions.BetException import BetException
+from betting.bet_exceptions.BetException import BetException
 
 
 class BetRuntimeException(BetException):

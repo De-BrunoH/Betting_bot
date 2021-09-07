@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
 '''
 $bet
-futbal
+futbal 
 Zvezda St.Petersburg|FC Chita
 Zápas: počet gólov
 Menej ako (3)
