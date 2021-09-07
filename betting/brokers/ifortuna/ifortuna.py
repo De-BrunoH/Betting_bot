@@ -1,9 +1,9 @@
-from betting.better_config import BET_WAIT_TIME
-from betting.Exceptions.BetRuntimeException import BetRuntimeException
-from betting.Exceptions.EventNotFoundException import EventNotFoundException
+from betting.better.better_config import BET_WAIT_TIME
+from betting.bet_exceptions.BetRuntimeException import BetRuntimeException
+from betting.bet_exceptions.EventNotFoundException import EventNotFoundException
 from typing import Optional, Tuple
 from time import sleep
-from selenium import webdriver
+from betting.setup_driver import setup_driver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.safari.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
@@ -20,23 +20,18 @@ class IFortuna():
     def __str__(self) -> str:
         return 'IFortuna'
 
-    def _setup_driver(self) -> WebDriver:
-        driver = webdriver.Safari()
-        driver.set_window_size(1200, 800)
-        return driver
-
     def find_event(self, event: str) -> str:
-        driver = self._setup_driver()
+        driver = setup_driver()
         driver.get(self.base_link)
         try:
             sleep(1)
             self._navigate_to_event(driver, event)
             sleep(2)
-            img_path = './betting/tmp_screenshots/IFortunaFindEvent.png'
+            img_path = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaFindEvent.png'
             driver.save_screenshot(img_path)
             return {'event_img': img_path}
         except Exception as e:
-            exception_img = './betting/tmp_screenshots/IFortunaFindEventException.png'
+            exception_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaFindEventException.png'
             driver.save_screenshot(exception_img)
             return create_bet_exception_report(
                 EventNotFoundException(
@@ -51,7 +46,7 @@ class IFortuna():
     
     def bet(self, account: dict, bet_info: dict) -> dict:
         try:
-            driver = self._setup_driver()
+            driver = setup_driver()
             driver.get(self.base_link)
             self._login(driver, account['name'], account['password'])
             sleep(13)
@@ -61,7 +56,7 @@ class IFortuna():
             self._logout(driver)
             return bet_report
         except Exception as e:
-            exception_img = './betting/tmp_screenshots/IFortunaBetRuntimeException.png'
+            exception_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetRuntimeException.png'
             driver.save_screenshot(exception_img)
             return create_bet_exception_report(
                 BetRuntimeException(
@@ -125,7 +120,7 @@ class IFortuna():
             bet_button.click()
         bet_button.click()
         sleep(1)
-        confirmation_img = './betting/tmp_screenshots/IFortunaBetConfirmation.png'
+        confirmation_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetConfirmation.png'
         driver.save_screenshot(confirmation_img)
         return confirmation_img, bet_rate
 

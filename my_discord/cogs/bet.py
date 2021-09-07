@@ -1,5 +1,5 @@
 import asyncio
-from betting.Better import Better
+from betting.better.Better import Better
 from typing import List, Tuple
 from asgiref.sync import sync_to_async
 from my_discord.bot.dc_bot import Bet_dc_bot
@@ -81,7 +81,7 @@ class Bet(Cog):
 
     async def get_broker_visuals(self, broker: str) -> Tuple[Colour, str]:
         if broker == 'IFortuna':
-            return Colour.from_rgb(255, 219, 1), './betting/broker_logos/ifortunalogo.png'
+            return Colour.from_rgb(255, 219, 1), './betting/brokers/ifortuna/data/ifortunalogo.png'
 
     async def send_for_approval(self, brokers_event: dict, bet_info: dict) -> dict:
         approval_flags = {}

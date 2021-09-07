@@ -1,4 +1,3 @@
-from my_discord.cogs.bet import Bet
 from my_discord.bot.dc_bot import Bet_dc_bot
 
 ''' Priklad: Sport\n x vs y \n na co stavit (napr: 'pocet golov')\n kolko (napr: 'menej ako (3)') '''
