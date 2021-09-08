@@ -11,7 +11,7 @@ if __name__ == '__main__':
 '''
 $bet
 futbal 
-Zvezda St.Petersburg|FC Chita
+Slovensko|cyprus
 Zápas: počet gólov
-Menej ako (3)
+Menej ako (2.5)
 '''

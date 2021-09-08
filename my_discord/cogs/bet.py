@@ -1,4 +1,7 @@
 import asyncio
+
+from discord.message import Message
+from betting.better.better_config import FROM_DECISION_EMOJIS, TO_DECISION_EMOJIS
 from betting.better.Better import Better
 from typing import List, Tuple
 from asgiref.sync import sync_to_async
@@ -17,8 +20,12 @@ class Bet(Cog):
             self.bot.cogs_ready.ready_up('bet')
 
     @command()
-    async def hello(self, ctx):
+    async def hello(self, ctx: Context):
         await ctx.channel.send(f'Hello {ctx.author.mention}!')
+
+    @command()
+    async def emoji_str(self, ctx: Context, *, arg):
+        await ctx.channel.send([str(emoji) for emoji in arg.split('|')])
 
     @command(name='bet', aliases=('b',))
     async def place_bets_all_accounts(self, ctx: Context, *, arg):
@@ -87,38 +94,38 @@ class Bet(Cog):
         approval_flags = {}
         for broker, event_findings in brokers_event.items():
             if 'exception' not in event_findings.keys():
-                approval_flags[broker] = await self.get_approval(broker, event_findings['event_img'], bet_info)
+                approval_flags[broker] = await self.get_approval(broker, event_findings['event_img'], event_findings['result_count'], bet_info)
             else:
                 approval_flags[broker] = False
                 await self.send_report(event_findings)
         return approval_flags
 
-    async def get_approval(self, broker: str, event_img: str, bet_info: dict) -> bool:
+    async def get_approval(self, broker: str, event_img: str, result_count: int, bet_info: dict) -> bool:
         user_decision_embed, files = await self.create_user_decision_embed(
             broker, 
             event_img, 
             bet_info
         )
         message = await self.bot.stdout.send(files=files, embed=user_decision_embed)
-        thumb_up = '👍'
-        thumb_down = '👎'
-        await message.add_reaction(thumb_up)
-        await message.add_reaction(thumb_down)
+        await self._add_decision_reactions(message, result_count)
         def check(reaction, user):
             return user in self.bot.legit_users and str(
-                reaction.emoji) in [thumb_up, thumb_down]
+                reaction.emoji) in FROM_DECISION_EMOJIS.keys()
         try:
-            reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=600)
+            reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=90)
         except asyncio.TimeoutError:
-            self.bot.stdout.send(f'Broker {broker}: You haven\'t made a decision, the bet is closed.')
-            return False
-        if str(reaction.emoji) == thumb_up:
-            await self.bot.stdout.send(f'Broker {broker}: Betting...')
-            return True
-        if str(reaction.emoji) == thumb_down:
+            self.bot.stdout.send(f'Broker {broker}: You haven\'t made a decision, the bet is skipped.')
+            return -1
+        if FROM_DECISION_EMOJIS[str(reaction.emoji)] == 'x':
             await self.bot.stdout.send(f'Broker {broker}: The bet is closed.')
-            return False
-        return False
+            return -1
+        await self.bot.stdout.send(f'Broker {broker}: Betting...')
+        return FROM_DECISION_EMOJIS[str(reaction.emoji)]
+    
+    async def _add_decision_reactions(self, message: Message, count: int) -> None:
+        for i in range(1, count + 1):
+            await message.add_reaction(TO_DECISION_EMOJIS[i])
+        await message.add_reaction(TO_DECISION_EMOJIS['x'])
 
     async def create_user_decision_embed(self, broker: str, event_img_path: str, bet_info: dict) -> Tuple[Embed, List[File]]:
         embed, tnail = await self.create_bet_embed_base(broker, f'{broker} broker bet confirmation:')

@@ -45,10 +45,10 @@ class Better:
         brokers_to_bet = async_to_sync(self.bet_cog.send_for_approval)(brokers_event_results, bet_info)
         
         for broker, account in self.brokers.values():
-            if brokers_to_bet[str(broker)]:
+            if brokers_to_bet[str(broker)] != -1:
                 pool.apply_async(
                     broker.bet, 
-                    args=(account, bet_info), 
+                    args=(account, bet_info, brokers_to_bet[str(broker)]), 
                     callback=self.status_messages_update
                 )
                 
