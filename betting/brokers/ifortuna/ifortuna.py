@@ -1,4 +1,6 @@
-from betting.better.better_config import BET_WAIT_TIME
+from betting.bet_exceptions.BetTimeoutException import BetTimeoutException
+from selenium.webdriver.safari import webdriver
+from betting.better.better_config import BET_WAIT_TIME, MIN_BET_RATE
 from betting.bet_exceptions.BetRuntimeException import BetRuntimeException
 from betting.bet_exceptions.EventNotFoundException import EventNotFoundException
 from typing import Optional, Tuple
@@ -9,6 +11,7 @@ from selenium.webdriver.safari.webdriver import WebDriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
+import time
 
 
 class IFortuna():
@@ -56,6 +59,8 @@ class IFortuna():
             bet_report = create_bet_result_report(bet_info, account, bet_rate, confirmation_img)
             self._logout(driver)
             return bet_report
+        except BetTimeoutException as bte:
+            pass
         except Exception as e:
             exception_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetRuntimeException.png'
             driver.save_screenshot(exception_img)
@@ -116,14 +121,15 @@ class IFortuna():
             
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
-        bet = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + bet_info['specs'] + '"]'
+        bet = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]'
+        odds = '//a[@title = "' + bet_info['specs'] + '"]'
         wait_for_bet = WebDriverWait(driver, BET_WAIT_TIME)
         try:
-            bet_button = wait_for_bet.until(ec.visibility_of_element_located((By.XPATH, bet)))
+            bet_button = wait_for_bet.until(ec.visibility_of_element_located((By.XPATH, bet + odds)))
         except:
             print(f'Bet not found after {BET_WAIT_TIME // 60} minutes.')
             return
-        bet_rate = float(driver.find_element_by_xpath(bet + '/span[@class="odds_button__value"]/span').text)
+        bet_rate = float(driver.find_element_by_xpath(bet + odds + '/span[@class="odds_button__value"]/span').text)
         bet_button.click()
         wait_bet_window = WebDriverWait(driver, 3)
         amount_field = wait_bet_window.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app_ticket"]//div[@class="ticket_stake"]/input')))
@@ -137,9 +143,38 @@ class IFortuna():
         driver.save_screenshot(confirmation_img)
         return confirmation_img, bet_rate
 
-    def _bet_is_locked(self, driver: WebDriver, bet_xpath: str) -> bool:
+    def _place_bet_better(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
         
-            driver.find_element_by_xpath(bet_xpath + '/span[@class="odds_button__value"]/div[@class="icon icon--lock icon--size_auto"]')
+        timeout = int(time.time() + BET_WAIT_TIME)
+        while time.time() <= timeout:
+            if self._bet_visible(driver, bet_info) and \
+                self._bet_unlocked(driver, bet_info) and \
+                self._bet_good_rate(driver, bet_info):
+                confirmation_img, bet_rate = self._send_ticket()
+        #raise BetTimeoutException()
+
+        
+
+    def _bet_visible(driver: WebDriver, bet_info: dict) -> bool:
+        return 1 == len(driver.find_elements((By.XPATH, 
+            '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
+            bet_info['specs'] + '"]')))
+
+    def _bet_unlocked(self, driver: WebDriver, bet_info: dict) -> bool:
+        return 0 == len(driver.find_elements((By.XPATH, 
+            '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
+            bet_info['specs'] + '" and @class="odds_button odds_button--horizontal odds_button--locked"]')))
+
+    def _bet_good_rate(self, driver: WebDriver, bet_info: dict) -> bool:
+        bet_element = driver.find_elements(By.XPATH,
+            '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
+            bet_info['specs'] + '"]/span[@class="odds_button__value"]/span')
+        return 1 == len(bet_element) and float(bet_element.text.strip()) >= MIN_BET_RATE
+
+    def _send_ticket(self, driver: WebDriver, bet_amount: int) -> Tuple[str, float]:
+        # prijat len vyssie
+        pass
+        
 
     def _logout(self, driver: WebDriver) -> None:
         account_banner = driver.find_element_by_xpath('//*[@id="app"]//div[@class="user_panel__info_user_box"]')
