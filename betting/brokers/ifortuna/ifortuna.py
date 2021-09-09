@@ -1,5 +1,4 @@
 import logging
-from betting.bet_exceptions.BetDeniedByBokieException import BetDeniedByBookieException
 from betting.bet_exceptions.BetException import BetException
 from betting.bet_exceptions.BetTimeoutException import BetTimeoutException
 from selenium.webdriver.safari import webdriver
