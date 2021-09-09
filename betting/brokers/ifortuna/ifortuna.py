@@ -78,6 +78,7 @@ class IFortuna():
         except (BetTimeoutException) as bte:
             return create_bet_exception_report(bte)
         except Exception as e:
+            print(e)
             exception_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetRuntimeException.png'
             driver.save_screenshot(exception_img)
             return create_bet_exception_report(
@@ -138,49 +139,29 @@ class IFortuna():
         search_field = wait_for_search_field.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="search-input"]')))
         parsed_event = event.split('|')
         self._send_keys_reliably(search_field, parsed_event[0])
-            
-
-    '''def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
-        bet = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]'
-        odds = '//a[@title = "' + bet_info['specs'] + '"]'
-        wait_for_bet = WebDriverWait(driver, BET_WAIT_TIME)
-        try:
-            bet_button = wait_for_bet.until(ec.visibility_of_element_located((By.XPATH, bet + odds)))
-        except:
-            print(f'Bet not found after {BET_WAIT_TIME // 60} minutes.')
-            return
-        bet_rate = float(driver.find_element_by_xpath(bet + odds + '/span[@class="odds_button__value"]/span').text)
-        bet_button.click()
-        wait_bet_window = WebDriverWait(driver, 3)
-        amount_field = wait_bet_window.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app_ticket"]//div[@class="ticket_stake"]/input')))
-        self._send_keys_reliably(amount_field, bet_amount)
-        bet_button = driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_summary__submit"]/button')
-        if bet_button.text.strip() == 'PRIJAŤ ZMENY':
-            bet_button.click()
-        bet_button.click()
-        sleep(1)
-        confirmation_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetConfirmation.png'
-        driver.save_screenshot(confirmation_img)
-        return confirmation_img, bet_rate'''
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
         logger.info(f'{self.__str__()}: placing bet...')
         bet_xpath, bet_lock_xpath, bet_rate_xpath = self._create_ticket_xpaths(bet_info)
         ticket_result = {}
-        timeout = int(time.time() + BET_WAIT_TIME)
+        time_now = time.time()
+        timeout = time_now + BET_WAIT_TIME       
         ticket_denied_count = 0
-        while time.time() <= timeout:
+        while time_now <= timeout:
             if self._bet_visible(driver, bet_info, bet_xpath) and \
                   self._bet_unlocked(driver, bet_info, bet_lock_xpath) and \
                   self._bet_good_rate(driver, bet_info, bet_rate_xpath):
-                if self._send_ticket(driver, bet_info, bet_xpath, bet_amount, ticket_result):
+                self._select_bet(driver, bet_xpath)
+                if self._process_ticket(driver, bet_info, bet_xpath, bet_amount, ticket_result):
                     return ticket_result['confirmation_img'], ticket_result['bet_rate']
                 else:
                     ticket_denied_count += 1
                     event = '_'.join(bet_info['event'].split('|'))
                     driver.save_screenshot(f'./betting/brokers/ifortuna/data/ticket_denials/{event}_{ticket_denied_count}.png')
-            sleep(1)
+                    self._deselect_bet(driver, bet_xpath)
             logger.info(f'{self.__str__()}: One of the predicates failed, retrying...')
+            time_now = time.time()
+            sleep(0.5)
         logger.info(f'{self.__str__()}: Bet timedout...')
         raise BetTimeoutException(
             broker=self.__str__(), 
@@ -208,19 +189,24 @@ class IFortuna():
 
     def _bet_good_rate(self, driver: WebDriver, bet_info: dict, bet_rate_xpath: str) -> bool:
         logger.info(f'{self.__str__()}: checking rate...')
-        bet_element = driver.find_elements(By.XPATH, bet_rate_xpath)
-        return 1 == len(bet_element) and float(bet_element.text.strip()) >= MIN_BET_RATE
+        bet_elements = driver.find_elements(By.XPATH, bet_rate_xpath)
+        return 1 == len(bet_elements) and float(bet_elements[0].text.strip()) >= MIN_BET_RATE
 
-    def _send_ticket(self, driver: WebDriver, bet_info, bet_xpath: str, bet_amount: int, ticket_result: dict) -> bool:
-        logger.info(f'{self.__str__()}: sending ticket...')
+    def _select_bet(self, driver: WebDriver, bet_xpath: str, log_prefix: str = '') -> None:
+        logger.info(f'{self.__str__()}: ' + log_prefix + 'selecting bet...')
+        bet_button = driver.find_element(By.XPATH, bet_xpath)
+        bet_button.click()
+
+    def _deselect_bet(self, driver: WebDriver, bet_xpath: str) -> None:
+        self._select_bet(driver, bet_xpath, 'de')
+
+    def _process_ticket(self, driver: WebDriver, bet_info: dict, bet_xpath: str, bet_amount: int, ticket_result: dict) -> bool:
+        logger.info(f'{self.__str__()}: processing ticket...')
         try:
-            send_ticket_button = self._setup_ticket_form(driver, bet_xpath, bet_amount)
+            send_ticket_button = self._setup_ticket_form(driver, bet_amount)
+            logger.info(f'{self.__str__()}: sending ticket...')
             send_ticket_button.click()
-            self._wait_for_bookie(driver)
-            try:
-                # checking for positive bookie message
-                driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_content__messages"]//*[contains(text(), "Tiket bol prijatý")]')
-            except:
+            if not self._ticket_submitted_successfully(driver):
                 logger.info(f'{self.__str__()}: Ticket denied by bookie...')
                 return False
         except:
@@ -230,26 +216,31 @@ class IFortuna():
         ticket_result['bet_rate'] = float(driver.find_element_by_xpath('//*[@id="app_ticket"]//span[@class="ticket_winnings__item_value"]').text.strip())
         return True
 
-    def _wait_for_bookie(self, driver) -> None:
+    def _ticket_submitted_successfully(self, driver: WebDriver) -> bool:
         logger.info(f'{self.__str__()}: waiting for bookie\'s decision...')
-        wait_for_bokie_decision = WebDriverWait(driver, BOOKIE_DECISION_WAIT, 0.1)
-        wait_for_bokie_decision.until_not(ec.visibility_of_element_located((By.XPATH, 
+        wait_for_submission = WebDriverWait(driver, BOOKIE_DECISION_WAIT, 0.3)
+        wait_for_submission.until_not(ec.visibility_of_element_located((By.XPATH, 
             '//*[@id="app_ticket"]//div[@class="ticket_content__messages"]//span[@class="ticket_content__submission_text"]')))
+        try:
+            wait_for_decision = WebDriverWait(driver, 5, 0.1)
+            wait_for_decision.until(ec.visibility_of_element_located(
+                (By.XPATH, '//*[@id="app_ticket"]//div[@class="alert_box__text" and normalize-space(text()) = "Tiket bol prijatý!"]')))
+            return True
+        except:
+            return False
         
-    def _setup_ticket_form(self, driver: WebDriver, bet_xpath: str, bet_amount: int) -> WebElement:
+    def _setup_ticket_form(self, driver: WebDriver, bet_amount: int) -> WebElement:
         logger.info(f'{self.__str__()}: setting up the ticket...')
-        bet = driver.find_elements(By.XPATH, bet_xpath)
-        bet.click()
         wait_bet_window = WebDriverWait(driver, 3)
         amount_field = wait_bet_window.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app_ticket"]//div[@class="ticket_stake"]/input')))
         self._send_keys_reliably(amount_field, bet_amount)
         bet_button = driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_summary__submit"]/button')
         select_rate_change = Select(driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_header__odds_accept"]//select'))
         select_rate_change.select_by_value("UPWARD")
-        if bet_button.text.strip() == 'PRIJAŤ ZMENY':
-            bet_button.click()
-        return bet_button
-        
+        # not sure about this ci to sposobuje doublespending alebo nie
+        '''if bet_button.text.strip() == 'PRIJAŤ ZMENY':
+            bet_button.click()'''
+        return bet_button   
 
     def _logout(self, driver: WebDriver) -> None:
         logger.info(f'{self.__str__()}: Logging out...')

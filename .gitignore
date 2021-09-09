@@ -134,3 +134,5 @@ better_config.py
 telegram_config.py
 .DS_store
 my_telegram/.DS_Store
+ticket_denials
+tmp_screenshots

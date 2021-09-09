@@ -13,7 +13,7 @@ if __name__ == '__main__':
 '''
 $bet
 futbal 
-S.L. Benfica|FC Twente
+UDELAS
 Zápas: počet gólov
-Menej ako (2.5)
+Viac ako (2.5)
 '''
