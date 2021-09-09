@@ -4,8 +4,9 @@ from multiprocessing import Pool
 from typing import List
 from betting.better.better_config import ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS, BROKERS_ACCOUNTS
 from asgiref.sync import async_to_sync
-from logger.bet_logger import logger
+from logger.bet_logger import setup_logger
 
+logger = setup_logger('better')
 
 class Better:
     
@@ -40,7 +41,7 @@ class Better:
         return bet_reports
 
     def _process_relevant_brokers(self, pool, brokers_to_bet: dict, bet_info: dict) -> None:
-        to_process = [broker + ' : ' + processed for broker, processed in brokers_to_bet.items()]
+        to_process = [broker + ' : ' + str(processed) for broker, processed in brokers_to_bet.items()]
         logger.info(f'Processing relevant brokers: {to_process}.')
         for broker, account in self.brokers.values():
             if brokers_to_bet[str(broker)] != -1:

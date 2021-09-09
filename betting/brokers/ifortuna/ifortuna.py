@@ -16,7 +16,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.remote.webelement import WebElement
 import time
-from logger.bet_logger import logger
+from logger.bet_logger import setup_logger
+
+logger = setup_logger('ifortuna')
 
 
 class IFortuna():

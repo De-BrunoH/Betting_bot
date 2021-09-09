@@ -8,7 +8,9 @@ from asgiref.sync import sync_to_async
 from my_discord.bot.dc_bot import Bet_dc_bot
 from discord.ext.commands import Cog, command, Context
 from discord import Embed, Colour, File
-from logger.bet_logger import logger
+from logger.bet_logger import setup_logger
+
+logger = setup_logger('bet_cog')
 
 class Bet(Cog):
     def __init__(self, bot: Bet_dc_bot):
