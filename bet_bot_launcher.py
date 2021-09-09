@@ -5,8 +5,10 @@ import time
 TEST_COMMAND = 'futbal\nSportivo Belgrano\nZápas: počet gólov\nMenej ako (2.5)'
 
 if __name__ == '__main__':
-    bot = Bet_dc_bot()
-    bot.run()
+    #bot = Bet_dc_bot()
+    #bot.run()
+    a = 'bh\nbh'
+    print(r'{a}')
 
 
 '''

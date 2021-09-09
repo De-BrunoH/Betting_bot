@@ -1,8 +1,10 @@
+import logging
 from betting.brokers.ifortuna.ifortuna import IFortuna
 from multiprocessing import Pool
 from typing import List
 from betting.better.better_config import ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS, BROKERS_ACCOUNTS
 from asgiref.sync import async_to_sync
+from logger.bet_logger import logger
 
 
 class Better:
@@ -25,15 +27,32 @@ class Better:
             print('Init Better Error: broker not found.')
 
     def bet_all_accounts(self, command: str) -> List[dict]:
-        bet_info = {}
-        try:
-            bet_info = self._process_bet_command(command)
-        except Exception as e:
-            self.bet_cog.bot.stdout.send(e)
-        
-        # add stoping of betting when command is wrong
-
+        logger.info('Bet all accounts start.')
+        bet_info = self._handle_bet_command(command)
+        if not bet_info:
+            return []
         pool = Pool(processes=len(self.brokers.keys()))
+        self._process_relevant_brokers(pool, self._get_relevant_brokers(pool, bet_info), bet_info)
+        pool.close()
+        pool.join()
+        bet_reports = self.status_messages
+        self._clear_status_messages()
+        return bet_reports
+
+    def _process_relevant_brokers(self, pool, brokers_to_bet: dict, bet_info: dict) -> None:
+        to_process = [broker + ' : ' + processed for broker, processed in brokers_to_bet.items()]
+        logger.info(f'Processing relevant brokers: {to_process}.')
+        for broker, account in self.brokers.values():
+            if brokers_to_bet[str(broker)] != -1:
+                pool.apply_async(
+                    broker.bet, 
+                    args=(account, bet_info, brokers_to_bet[str(broker)]), 
+                    callback=self._status_messages_update
+                )
+
+    def _get_relevant_brokers(self, pool, bet_info: dict) -> dict:
+        event_name = bet_info['event']
+        logging.info(f'Finding relevant brokers for event {event_name}.')
         brokers_event_results = {}
         for broker, _ in self.brokers.values():
             brokers_event_results[str(broker)] = pool.apply_async(
@@ -42,26 +61,22 @@ class Better:
             )
         for broker, _ in self.brokers.values():
             brokers_event_results[str(broker)] = brokers_event_results[str(broker)].get()
-        brokers_to_bet = async_to_sync(self.bet_cog.send_for_approval)(brokers_event_results, bet_info)
-        
-        for broker, account in self.brokers.values():
-            if brokers_to_bet[str(broker)] != -1:
-                pool.apply_async(
-                    broker.bet, 
-                    args=(account, bet_info, brokers_to_bet[str(broker)]), 
-                    callback=self.status_messages_update
-                )
-                
-        pool.close()
-        pool.join()
-        bet_reports = self.status_messages
-        self.clear_status_messages()
-        return bet_reports
+        return async_to_sync(self.bet_cog.send_for_approval)(brokers_event_results, bet_info)
 
-    def status_messages_update(self, message_data: dict) -> None:
+    def _handle_bet_command(self, command: str) -> dict:
+        logger.info('Handling command: ' + f'{command}')
+        bet_info = {}
+        try:
+            bet_info = self._process_bet_command(command)
+        except Exception as e:
+            logger.info('Received command is has incorrect format.')
+            self.bet_cog.bot.stdout.send(e)
+        return bet_info
+    
+    def _status_messages_update(self, message_data: dict) -> None:
         self.status_messages.append(message_data)
     
-    def clear_status_messages(self) -> None:
+    def _clear_status_messages(self) -> None:
         self.status_messages = []
 
     def _process_bet_command(self, command: str) -> dict:
@@ -74,7 +89,7 @@ class Better:
         if sport not in ALLOWED_SPORTS:
             raise Exception('Error: Sport not supported.')
         if bet not in ALLOWED_BETS_PER_SPORT[sport]:
-            raise Exception('Error: Bet not supported.')
+            raise Exception('Error: Bet type not supported for this sport.')
         return {'event': event, 'bet': bet, 'specs': specs, 'sport': sport}
 
     

@@ -1,13 +1,14 @@
 import asyncio
 
 from discord.message import Message
-from betting.better.better_config import FROM_DECISION_EMOJIS, TO_DECISION_EMOJIS
+from betting.better.better_config import APPROVAL_TIMEOUT, FROM_DECISION_EMOJIS, TO_DECISION_EMOJIS
 from betting.better.Better import Better
 from typing import List, Tuple
 from asgiref.sync import sync_to_async
 from my_discord.bot.dc_bot import Bet_dc_bot
 from discord.ext.commands import Cog, command, Context
 from discord import Embed, Colour, File
+from logger.bet_logger import logger
 
 class Bet(Cog):
     def __init__(self, bot: Bet_dc_bot):
@@ -94,6 +95,7 @@ class Bet(Cog):
             return Colour.from_rgb(255, 219, 1), './betting/brokers/ifortuna/data/ifortunalogo.png'
 
     async def send_for_approval(self, brokers_event: dict, bet_info: dict) -> dict:
+        logger.info('Getting approvals from user.')
         approval_flags = {}
         for broker, event_findings in brokers_event.items():
             if 'exception' not in event_findings.keys():
@@ -115,13 +117,17 @@ class Bet(Cog):
             return user in self.bot.legit_users and str(
                 reaction.emoji) in FROM_DECISION_EMOJIS.keys()
         try:
-            reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=90)
+            reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=APPROVAL_TIMEOUT)
         except asyncio.TimeoutError:
+            logger.info(f'{broker}: Approval expired.')
             self.bot.stdout.send(f'Broker {broker}: You haven\'t made a decision, the bet is skipped.')
             return -1
         if FROM_DECISION_EMOJIS[str(reaction.emoji)] == 'x':
+            logger.info(f'{broker}: Rejected.')
             await self.bot.stdout.send(f'Broker {broker}: The bet is closed.')
             return -1
+        event_emoji = FROM_DECISION_EMOJIS[str(reaction.emoji)]
+        logger.info(f'{broker}: Approved. Emoji: {event_emoji}.')
         await self.bot.stdout.send(f'Broker {broker}: Betting...')
         return FROM_DECISION_EMOJIS[str(reaction.emoji)]
     

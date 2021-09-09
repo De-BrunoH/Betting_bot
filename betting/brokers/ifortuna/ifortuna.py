@@ -1,8 +1,9 @@
+import logging
 from betting.bet_exceptions.BetDeniedByBokieException import BetDeniedByBookieException
 from betting.bet_exceptions.BetException import BetException
 from betting.bet_exceptions.BetTimeoutException import BetTimeoutException
 from selenium.webdriver.safari import webdriver
-from betting.better.better_config import BET_WAIT_TIME, MIN_BET_RATE
+from betting.better.better_config import BET_WAIT_TIME, BOOKIE_DECISION_WAIT, MIN_BET_RATE
 from betting.bet_exceptions.BetRuntimeException import BetRuntimeException
 from betting.bet_exceptions.EventNotFoundException import EventNotFoundException
 from typing import Optional, Tuple
@@ -14,7 +15,9 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.remote.webelement import WebElement
 import time
+from logger.bet_logger import logger
 
 
 class IFortuna():
@@ -26,15 +29,18 @@ class IFortuna():
     def __str__(self) -> str:
         return 'IFortuna'
 
-    def find_event(self, event: str) -> str:
+    def find_event(self, event: str) -> dict:
+        logging.info(f'{self.__str__()}: Finding event {event}.')
         driver = setup_driver()
         driver.get(self.base_link)
         try:
             result_count = self._find_similar_events(driver, event)
             img_path = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaFindEvent.png'
             driver.save_screenshot(img_path)
+            logger.info(f'{self.__str__()}: Found similar events.')
             return {'event_img': img_path, 'result_count': result_count}
         except Exception as e:
+            logger.info(f'{self.__str__()}: Similar events not found.')
             exception_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaFindEventException.png'
             driver.save_screenshot(exception_img)
             return create_bet_exception_report(
@@ -47,22 +53,28 @@ class IFortuna():
             )
         finally:
             driver.close()
+
+    def _find_similar_events(self, driver: WebDriver, event: str) -> int:
+        self._search_for_event(driver, event)
+        wait_for_search = WebDriverWait(driver, 0.5, 0.1)
+        similar_events = wait_for_search.until(ec.presence_of_all_elements_located((By.XPATH, '//*[@id="app"]//div' + 
+            '[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[a[@class="fortuna_search_bar_matches__match_info_wrapper"]]')))
+        return len(similar_events)
     
     def bet(self, account: dict, bet_info: dict, search_position: int) -> dict:
+        event = bet_info['event']
+        logger.info(f'{self.__str__()}: Betting event {event}...')
         try:
             driver = setup_driver()
             driver.get(self.base_link)
             self._login(driver, account['name'], account['password'])
-            wait_for_popup_close = WebDriverWait(driver, 20, 0.1)
-            wait_for_popup_close.until(ec.presence_of_element_located(
-                (By.XPATH, '//div[@class="simple_modal simple_modal--hidden simple_modal--with_overlay ' + 
-                'simple_modal--default  user-message user-message--show user-message__centered  responsible-gaming"]')))
+            self._wait_for_popup_close(driver)
             self._navigate_to_event(driver, bet_info['event'], search_position)
             confirmation_img, bet_rate = self._place_bet(driver, bet_info, account['bet_amount'])
             bet_report = create_bet_result_report(bet_info, account, bet_rate, confirmation_img)
             self._logout(driver)
             return bet_report
-        except (BetTimeoutException, BetDeniedByBookieException) as bte:
+        except (BetTimeoutException) as bte:
             return create_bet_exception_report(bte)
         except Exception as e:
             exception_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetRuntimeException.png'
@@ -76,7 +88,15 @@ class IFortuna():
                 )
             )
         finally:
+            logger.info(f'{self.__str__()}: Betting on event {event} ended.')
             driver.close()
+
+    def _wait_for_popup_close(self, driver: WebDriver) -> None:
+        logger.info(f'{self.__str__()}: Waiting for popup close...')
+        wait_for_popup_close = WebDriverWait(driver, 20, 0.1)
+        wait_for_popup_close.until(ec.presence_of_element_located(
+            (By.XPATH, '//div[@class="simple_modal simple_modal--hidden simple_modal--with_overlay ' + 
+            'simple_modal--default  user-message user-message--show user-message__centered  responsible-gaming"]')))
 
     def _send_keys_reliably(self, input_field, keys: str) -> None:
         while input_field.get_property('value') != keys:
@@ -85,6 +105,7 @@ class IFortuna():
                 input_field.send_keys(key)
 
     def _login(self, driver: WebDriver, login_name: str, password: str) -> None:
+        logger.info(f'{self.__str__()}: Logging in...')
         wait_for_login_button = WebDriverWait(driver, 3)
         login_banner = wait_for_login_button.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//div[normalize-space(text())="Prihlásiť"]')))
         login_banner.click()
@@ -97,6 +118,7 @@ class IFortuna():
         login_button.click()
 
     def _navigate_to_event(self, driver: WebDriver, event: str, search_position: int) -> None:
+        logger.info(f'{self.__str__()}: Navigating to event...')
         self._search_for_event(driver, event)
         wait_for_search = WebDriverWait(driver, 0.5, 0.1)
         try:
@@ -106,13 +128,6 @@ class IFortuna():
             search_result.click()
         except:
             raise Exception(f'Event name can be wrong, or this event is not available at {self.__str__()} broker.')
-
-    def _find_similar_events(self, driver: WebDriver, event: str) -> int:
-        self._search_for_event(driver, event)
-        wait_for_search = WebDriverWait(driver, 0.5, 0.1)
-        similar_events = wait_for_search.until(ec.presence_of_all_elements_located((By.XPATH, '//*[@id="app"]//div' + 
-            '[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[a[@class="fortuna_search_bar_matches__match_info_wrapper"]]')))
-        return len(similar_events)
 
     def _search_for_event(self, driver: WebDriver, event: str) -> None:
         search_field_button = driver.find_element_by_xpath('//*[@id="app"]//div[@class="view-menu__search-wrapper"]/button')
@@ -147,21 +162,24 @@ class IFortuna():
         return confirmation_img, bet_rate'''
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
+        logger.info(f'{self.__str__()}: placing bet...')
+        bet_xpath, bet_lock_xpath, bet_rate_xpath = self._create_ticket_xpaths(bet_info)
         ticket_result = {}
         timeout = int(time.time() + BET_WAIT_TIME)
-        bet_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
-            bet_info['specs'] + '"]'
-        bet_lock_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
-            bet_info['specs'] + '" and @class="odds_button odds_button--horizontal odds_button--locked"]'
-        bet_rate_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
-            bet_info['specs'] + '"]/span[@class="odds_button__value"]/span'
+        ticket_denied_count = 0
         while time.time() <= timeout:
             if self._bet_visible(driver, bet_info, bet_xpath) and \
                   self._bet_unlocked(driver, bet_info, bet_lock_xpath) and \
-                  self._bet_good_rate(driver, bet_info, bet_rate_xpath) and \
-                  self._send_ticket(driver, bet_info, bet_xpath, bet_amount, ticket_result):
-                return ticket_result['confirmation_img'], ticket_result['bet_rate']
+                  self._bet_good_rate(driver, bet_info, bet_rate_xpath):
+                if self._send_ticket(driver, bet_info, bet_xpath, bet_amount, ticket_result):
+                    return ticket_result['confirmation_img'], ticket_result['bet_rate']
+                else:
+                    ticket_denied_count += 1
+                    event = '_'.join(bet_info['event'].split('|'))
+                    driver.save_screenshot(f'./betting/brokers/ifortuna/data/ticket_denials/{event}_{ticket_denied_count}.png')
             sleep(1)
+            logger.info(f'{self.__str__()}: One of the predicates failed, retrying...')
+        logger.info(f'{self.__str__()}: Bet timedout...')
         raise BetTimeoutException(
             broker=self.__str__(), 
             event=bet_info['event'], 
@@ -169,36 +187,39 @@ class IFortuna():
             root_message='Bet did not meet standards in time. Or was denied by bookie see Ifortuna logs.'
         )
 
-    def _bet_visible(driver: WebDriver, bet_info: dict, bet_xpath: str) -> bool:
+    def _create_ticket_xpaths(self, bet_info: dict) -> Tuple[str, str, str]:
+        bet_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
+            bet_info['specs'] + '"]'
+        bet_lock_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
+            bet_info['specs'] + '" and @class="odds_button odds_button--horizontal odds_button--locked"]'
+        bet_rate_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
+            bet_info['specs'] + '"]/span[@class="odds_button__value"]/span'
+        return bet_xpath, bet_lock_xpath, bet_rate_xpath
+
+    def _bet_visible(self, driver: WebDriver, bet_info: dict, bet_xpath: str) -> bool:
+        logger.info(f'{self.__str__()}: checking visiility...')
         return 1 == len(driver.find_elements(By.XPATH, bet_xpath))
 
     def _bet_unlocked(self, driver: WebDriver, bet_info: dict, bet_lock_xpath: str) -> bool:
+        logger.info(f'{self.__str__()}: checking lock...')
         return 0 == len(driver.find_elements(By.XPATH, bet_lock_xpath))
 
     def _bet_good_rate(self, driver: WebDriver, bet_info: dict, bet_rate_xpath: str) -> bool:
+        logger.info(f'{self.__str__()}: checking rate...')
         bet_element = driver.find_elements(By.XPATH, bet_rate_xpath)
         return 1 == len(bet_element) and float(bet_element.text.strip()) >= MIN_BET_RATE
 
     def _send_ticket(self, driver: WebDriver, bet_info, bet_xpath: str, bet_amount: int, ticket_result: dict) -> bool:
+        logger.info(f'{self.__str__()}: sending ticket...')
         try:
-            bet_button = driver.find_elements(By.XPATH, bet_xpath)
-            bet_button.click()
-            wait_bet_window = WebDriverWait(driver, 3)
-            amount_field = wait_bet_window.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app_ticket"]//div[@class="ticket_stake"]/input')))
-            self._send_keys_reliably(amount_field, bet_amount)
-            bet_button = driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_summary__submit"]/button')
-            select_rate_change = Select(driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_header__odds_accept"]//select'))
-            select_rate_change.select_by_value("UPWARD")
-            if bet_button.text.strip() == 'PRIJAŤ ZMENY':
-                bet_button.click()
-            bet_button.click()
-            wait_for_bokie_decision = WebDriverWait(driver, 60, 0.1)
-            wait_for_bokie_decision.until_not(ec.visibility_of_element_located((By.XPATH, 
-                '//*[@id="app_ticket"]//div[@class="ticket_content__messages"]//span[@class="ticket_content__submission_text"]')))#contains(text(), "Odosielanie tiketu")]')))
+            send_ticket_button = self._setup_ticket_form(driver, bet_xpath, bet_amount)
+            send_ticket_button.click()
+            self._wait_for_bookie(driver)
             try:
+                # checking for positive bookie message
                 driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_content__messages"]//*[contains(text(), "Tiket bol prijatý")]')
             except:
-                # log ze bol zamietnuty
+                logger.info(f'{self.__str__()}: Ticket denied by bookie...')
                 return False
         except:
             return False
@@ -206,11 +227,30 @@ class IFortuna():
         driver.save_screenshot(ticket_result['confirmation_img'])
         ticket_result['bet_rate'] = float(driver.find_element_by_xpath('//*[@id="app_ticket"]//span[@class="ticket_winnings__item_value"]').text.strip())
         return True
-        
 
+    def _wait_for_bookie(self, driver) -> None:
+        logger.info(f'{self.__str__()}: waiting for bookie\'s decision...')
+        wait_for_bokie_decision = WebDriverWait(driver, BOOKIE_DECISION_WAIT, 0.1)
+        wait_for_bokie_decision.until_not(ec.visibility_of_element_located((By.XPATH, 
+            '//*[@id="app_ticket"]//div[@class="ticket_content__messages"]//span[@class="ticket_content__submission_text"]')))
+        
+    def _setup_ticket_form(self, driver: WebDriver, bet_xpath: str, bet_amount: int) -> WebElement:
+        logger.info(f'{self.__str__()}: setting up the ticket...')
+        bet = driver.find_elements(By.XPATH, bet_xpath)
+        bet.click()
+        wait_bet_window = WebDriverWait(driver, 3)
+        amount_field = wait_bet_window.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app_ticket"]//div[@class="ticket_stake"]/input')))
+        self._send_keys_reliably(amount_field, bet_amount)
+        bet_button = driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_summary__submit"]/button')
+        select_rate_change = Select(driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_header__odds_accept"]//select'))
+        select_rate_change.select_by_value("UPWARD")
+        if bet_button.text.strip() == 'PRIJAŤ ZMENY':
+            bet_button.click()
+        return bet_button
         
 
     def _logout(self, driver: WebDriver) -> None:
+        logger.info(f'{self.__str__()}: Logging out...')
         account_banner = driver.find_element_by_xpath('//*[@id="app"]//div[@class="user_panel__info_user_box"]')
         logout_button = driver.find_element_by_xpath('//*[@id="app"]//div[@class="user_panel__logout"]/button')
         actions = ActionChains(driver)
