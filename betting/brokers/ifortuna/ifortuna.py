@@ -129,6 +129,7 @@ class IFortuna():
             raise Exception(f'Event name can be wrong, or this event is not available at {self.__str__()} broker.')
 
     def _search_for_event(self, driver: WebDriver, event: str) -> None:
+        logger.info(f'{self.__str__()}: Searching for event...')
         search_field_button = driver.find_element_by_xpath('//*[@id="app"]//div[@class="view-menu__search-wrapper"]/button')
         search_field_button.click()
         wait_for_search_field = WebDriverWait(driver, 2)
