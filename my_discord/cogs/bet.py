@@ -67,6 +67,9 @@ class Bet(Cog):
         formated_report.add_field(name='Exception message:', value=report['exception'].message, inline=True)
         formated_report.add_field(name='Root exception message:', value=report['exception'].root_message, inline=True)
         
+        if report['exception'].screenshot == '':
+            return formated_report, [tnail]
+        
         bet_exception_path = report['exception'].screenshot
         bet_exception = bet_exception_path.split('/')[-1]
         exception_img = File(bet_exception_path, filename=bet_exception)

@@ -1,9 +1,9 @@
 from betting.bet_exceptions.BetException import BetException
 
 
-class BetTimeoutException(BetException):
-    def __init__(self, broker: str, event: str, screenshot_path: str, root_message: str, message: str='Bet timed out.'):
-        super(BetTimeoutException, self).__init__(
+class BetDeniedByBookieException(BetException):
+    def __init__(self, broker: str, event: str, screenshot_path: str, root_message: str, message: str='Bet denied by bokie. See image.'):
+        super().__init__(
             broker = broker,
             event = event,
             message = message,
