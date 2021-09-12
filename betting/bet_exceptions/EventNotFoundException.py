@@ -1,12 +1,7 @@
-from betting.bet_exceptions.BetException import BetException
-
-
-class EventNotFoundException(BetException):
+class EventNotFoundException(Exception):
     def __init__(self, broker: str, event: str, screenshot_path: str, root_message: str, message: str='Event not found.'):
-        super().__init__(
-            broker = broker,
-            event = event,
-            message = message,
-            screenshot_path = screenshot_path,
-            root_message = root_message
-        )
+        self.broker = broker
+        self.event = event
+        self.message = message
+        self.screenshot = screenshot_path
+        self.root_message = root_message

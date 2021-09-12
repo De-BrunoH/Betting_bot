@@ -103,7 +103,7 @@ class Bet(Cog):
             if 'exception' not in event_findings.keys():
                 approval_flags[broker] = await self.get_approval(broker, event_findings['event_img'], event_findings['result_count'], bet_info)
             else:
-                approval_flags[broker] = False
+                approval_flags[broker] = -1
                 await self.send_report(event_findings)
         return approval_flags
 
@@ -113,7 +113,7 @@ class Bet(Cog):
             event_img, 
             bet_info
         )
-        message = await self.bot.stdout.send(files=files, embed=user_decision_embed)
+        message = await self.bot.stdin.send(files=files, embed=user_decision_embed)
         await self._add_decision_reactions(message, result_count)
         def check(reaction, user):
             return user in self.bot.legit_users and str(
@@ -122,15 +122,15 @@ class Bet(Cog):
             reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=APPROVAL_TIMEOUT)
         except asyncio.TimeoutError:
             logger.info(f'{broker}: Approval expired.')
-            self.bot.stdout.send(f'Broker {broker}: You haven\'t made a decision, the bet is skipped.')
+            self.bot.stdin.send(f'Broker {broker}: You haven\'t made a decision, the bet is skipped.')
             return -1
         if FROM_DECISION_EMOJIS[str(reaction.emoji)] == 'x':
             logger.info(f'{broker}: Rejected.')
-            await self.bot.stdout.send(f'Broker {broker}: The bet is closed.')
+            await self.bot.stdin.send(f'Broker {broker}: The bet is closed.')
             return -1
         event_emoji = FROM_DECISION_EMOJIS[str(reaction.emoji)]
         logger.info(f'{broker}: Approved. Emoji: {event_emoji}.')
-        await self.bot.stdout.send(f'Broker {broker}: Betting...')
+        await self.bot.stdin.send(f'Broker {broker}: Betting...')
         return FROM_DECISION_EMOJIS[str(reaction.emoji)]
     
     async def _add_decision_reactions(self, message: Message, count: int) -> None:

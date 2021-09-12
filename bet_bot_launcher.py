@@ -13,7 +13,7 @@ if __name__ == '__main__':
 '''
 $bet
 futbal 
-UDELAS
-Zápas: počet gólov
-Viac ako (2.5)
+Petržalka
+Zápas: presný počet gólov
+2
 '''

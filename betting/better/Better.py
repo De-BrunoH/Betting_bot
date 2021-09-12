@@ -41,7 +41,7 @@ class Better:
         return bet_reports
 
     def _process_relevant_brokers(self, pool, brokers_to_bet: dict, bet_info: dict) -> None:
-        to_process = [broker + ' : ' + str(processed) for broker, processed in brokers_to_bet.items()]
+        to_process = [broker + ' : ' + str(0 < processed) for broker, processed in brokers_to_bet.items()]
         logger.info(f'Processing relevant brokers: {to_process}.')
         for broker, account in self.brokers.values():
             if brokers_to_bet[str(broker)] != -1:

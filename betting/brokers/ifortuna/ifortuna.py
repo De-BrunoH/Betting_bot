@@ -1,5 +1,4 @@
 import logging
-from betting.bet_exceptions.BetException import BetException
 from betting.bet_exceptions.BetTimeoutException import BetTimeoutException
 from selenium.webdriver.safari import webdriver
 from betting.better.better_config import BET_WAIT_TIME, BOOKIE_DECISION_WAIT, MIN_BET_RATE
@@ -46,10 +45,10 @@ class IFortuna():
             driver.save_screenshot(exception_img)
             return create_bet_exception_report(
                 EventNotFoundException(
-                    broker=self.__str__(), 
-                    event=event, 
-                    screenshot_path=exception_img, 
-                    root_message=str(e)
+                    self.__str__(), 
+                    event, 
+                    exception_img, 
+                    str(e)
                 )    
             )
         finally:
@@ -75,18 +74,18 @@ class IFortuna():
             bet_report = create_bet_result_report(bet_info, account, bet_rate, confirmation_img)
             self._logout(driver)
             return bet_report
-        except (BetTimeoutException) as bte:
+        except BetTimeoutException as bte:
             return create_bet_exception_report(bte)
         except Exception as e:
-            print(e)
+            logger.info(f'{self.__str__()}: Runtime exception occured. exception: {e}')
             exception_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetRuntimeException.png'
             driver.save_screenshot(exception_img)
             return create_bet_exception_report(
                 BetRuntimeException(
-                    broker=self.__str__(), 
-                    event=bet_info['event'], 
-                    screenshot_path=exception_img, 
-                    root_message=str(e)
+                    self.__str__(), 
+                    bet_info['event'], 
+                    exception_img, 
+                    str(e)
                 )
             )
         finally:
@@ -109,10 +108,14 @@ class IFortuna():
     def _login(self, driver: WebDriver, login_name: str, password: str) -> None:
         logger.info(f'{self.__str__()}: Logging in...')
         wait_for_login_button = WebDriverWait(driver, 3)
-        login_banner = wait_for_login_button.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//div[normalize-space(text())="Prihlásiť"]')))
+        login_banner = wait_for_login_button.until(ec.visibility_of_element_located(
+            (By.XPATH, '//*[@id="app"]//div[normalize-space(text())="Prihlásiť"]'))
+        )
         login_banner.click()
         wait_login_form = WebDriverWait(driver, 2)
-        login_name_field = wait_login_form.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="app"]//input[@name="username"]')))
+        login_name_field = wait_login_form.until(ec.visibility_of_element_located(
+            (By.XPATH, '//*[@id="app"]//input[@name="username"]'))
+        )
         password_field = driver.find_element_by_xpath('//*[@id="app"]//input[@name="password"]')
         self._send_keys_reliably(login_name_field, login_name)
         self._send_keys_reliably(password_field, password)
@@ -142,81 +145,86 @@ class IFortuna():
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
         logger.info(f'{self.__str__()}: placing bet...')
-        bet_xpath, bet_lock_xpath, bet_rate_xpath = self._create_ticket_xpaths(bet_info)
-        ticket_result = {}
+        bet_xpath, bet_rate_xpath = self._create_ticket_xpaths(bet_info)
         time_now = time.time()
         timeout = time_now + BET_WAIT_TIME       
         ticket_denied_count = 0
         while time_now <= timeout:
-            if self._bet_visible(driver, bet_info, bet_xpath) and \
-                  self._bet_unlocked(driver, bet_info, bet_lock_xpath) and \
-                  self._bet_good_rate(driver, bet_info, bet_rate_xpath):
-                self._select_bet(driver, bet_xpath)
-                if self._process_ticket(driver, bet_info, bet_xpath, bet_amount, ticket_result):
-                    return ticket_result['confirmation_img'], ticket_result['bet_rate']
-                else:
-                    ticket_denied_count += 1
-                    event = '_'.join(bet_info['event'].split('|'))
-                    driver.save_screenshot(f'./betting/brokers/ifortuna/data/ticket_denials/{event}_{ticket_denied_count}.png')
-                    self._deselect_bet(driver, bet_xpath)
+            if self._bet_is_bettable(driver, bet_xpath, bet_rate_xpath):
+                if self._process_ticket(driver, bet_xpath, bet_amount):
+                    return self._process_ticket_approval(driver, bet_rate_xpath)
+                ticket_denied_count += 1
+                self._process_ticket_denial(driver, bet_info, bet_xpath, ticket_denied_count)
             logger.info(f'{self.__str__()}: One of the predicates failed, retrying...')
             time_now = time.time()
-            sleep(0.5)
+            sleep(1)
         logger.info(f'{self.__str__()}: Bet timedout...')
         raise BetTimeoutException(
-            broker=self.__str__(), 
-            event=bet_info['event'], 
-            screenshot_path='', 
-            root_message='Bet did not meet standards in time. Or was denied by bookie see Ifortuna logs.'
+            self.__str__(), 
+            bet_info['event'], 
+            '', 
+            'Bet did not meet standards in time.'
         )
 
     def _create_ticket_xpaths(self, bet_info: dict) -> Tuple[str, str, str]:
         bet_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
             bet_info['specs'] + '"]'
-        bet_lock_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
-            bet_info['specs'] + '" and @class="odds_button odds_button--horizontal odds_button--locked"]'
         bet_rate_xpath = '//div[div[normalize-space(text()) = "' + bet_info['bet'] + '"]]//a[@title = "' + \
             bet_info['specs'] + '"]/span[@class="odds_button__value"]/span'
-        return bet_xpath, bet_lock_xpath, bet_rate_xpath
+        return bet_xpath, bet_rate_xpath
 
-    def _bet_visible(self, driver: WebDriver, bet_info: dict, bet_xpath: str) -> bool:
+    def _bet_is_bettable(self, driver: WebDriver, bet_xpath: str, bet_rate_xpath: str) -> bool:
+        try:
+            return self._bet_visible(driver, bet_xpath) and \
+                   self._bet_unlocked_good_rate(driver, bet_rate_xpath)
+        except:
+            return False
+    
+    def _bet_visible(self, driver: WebDriver, bet_xpath: str) -> bool:
         logger.info(f'{self.__str__()}: checking visiility...')
-        return 1 == len(driver.find_elements(By.XPATH, bet_xpath))
+        driver.find_element(By.XPATH, bet_xpath)
+        return True
 
-    def _bet_unlocked(self, driver: WebDriver, bet_info: dict, bet_lock_xpath: str) -> bool:
-        logger.info(f'{self.__str__()}: checking lock...')
-        return 0 == len(driver.find_elements(By.XPATH, bet_lock_xpath))
-
-    def _bet_good_rate(self, driver: WebDriver, bet_info: dict, bet_rate_xpath: str) -> bool:
-        logger.info(f'{self.__str__()}: checking rate...')
-        bet_elements = driver.find_elements(By.XPATH, bet_rate_xpath)
-        return 1 == len(bet_elements) and float(bet_elements[0].text.strip()) >= MIN_BET_RATE
+    def _bet_unlocked_good_rate(self, driver: WebDriver, bet_rate_xpath: str) -> bool:
+        logger.info(f'{self.__str__()}: checking lock and rate...')
+        bet_elements = driver.find_element(By.XPATH, bet_rate_xpath)
+        return float(bet_elements.text.strip()) >= MIN_BET_RATE
 
     def _select_bet(self, driver: WebDriver, bet_xpath: str, log_prefix: str = '') -> None:
-        logger.info(f'{self.__str__()}: ' + log_prefix + 'selecting bet...')
+        logger.info(f'{self.__str__()}: {log_prefix}selecting bet...')
         bet_button = driver.find_element(By.XPATH, bet_xpath)
+        print('scrolling')
+        driver.execute_script("arguments[0].scrollIntoView();", bet_button)
+        print('scrolled')
         bet_button.click()
 
     def _deselect_bet(self, driver: WebDriver, bet_xpath: str) -> None:
-        self._select_bet(driver, bet_xpath, 'de')
+        self._select_bet(driver, bet_xpath, log_prefix='de')
 
-    def _process_ticket(self, driver: WebDriver, bet_info: dict, bet_xpath: str, bet_amount: int, ticket_result: dict) -> bool:
+    def _process_ticket(self, driver: WebDriver, bet_xpath: str, bet_amount: int) -> bool:
         logger.info(f'{self.__str__()}: processing ticket...')
         try:
+            self._select_bet(driver, bet_xpath)
             send_ticket_button = self._setup_ticket_form(driver, bet_amount)
             logger.info(f'{self.__str__()}: sending ticket...')
             send_ticket_button.click()
-            if not self._ticket_submitted_successfully(driver):
-                logger.info(f'{self.__str__()}: Ticket denied by bookie...')
-                return False
+            return self._ticket_approved(driver)
         except:
             return False
-        ticket_result['confirmation_img'] = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetConfirmation.png'
-        driver.save_screenshot(ticket_result['confirmation_img'])
-        ticket_result['bet_rate'] = float(driver.find_element_by_xpath('//*[@id="app_ticket"]//span[@class="ticket_winnings__item_value"]').text.strip())
-        return True
 
-    def _ticket_submitted_successfully(self, driver: WebDriver) -> bool:
+    def _process_ticket_denial(self, driver: WebDriver, bet_info: dict, bet_xpath: str, deny_count: int) -> None:
+        logger.info(f'{self.__str__()}: Ticket denied (bookie or exception, check screenshots)...')
+        event = '_'.join(bet_info['event'].split('|'))
+        driver.save_screenshot(f'./betting/brokers/ifortuna/data/ticket_denials/{event}_{deny_count}.png')
+        self._deselect_bet(driver, bet_xpath)
+
+    def _process_ticket_approval(self, driver: WebDriver, bet_rate_xpath: str) -> Tuple[str, float]:
+        bet_rate = float(driver.find_element_by_xpath(bet_rate_xpath).text.strip())
+        confirmation_img = './betting/brokers/ifortuna/data/tmp_screenshots/IFortunaBetConfirmation.png'
+        driver.save_screenshot(confirmation_img)
+        return confirmation_img, bet_rate
+
+    def _ticket_approved(self, driver: WebDriver) -> bool:
         logger.info(f'{self.__str__()}: waiting for bookie\'s decision...')
         wait_for_submission = WebDriverWait(driver, BOOKIE_DECISION_WAIT, 0.3)
         wait_for_submission.until_not(ec.visibility_of_element_located((By.XPATH, 
