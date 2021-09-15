@@ -95,6 +95,8 @@ class Bet(Cog):
     async def get_broker_visuals(self, broker: str) -> Tuple[Colour, str]:
         if broker == 'IFortuna':
             return Colour.from_rgb(255, 219, 1), './betting/brokers/ifortuna/data/ifortunalogo.png'
+        elif broker == 'Doxxbet':
+            return Colour.from_rgb(244, 0, 52), './betting/brokers/doxxbet/data/doxxbetlogo.png'
 
     async def send_for_approval(self, brokers_event: dict, bet_info: dict) -> dict:
         logger.info('Getting approvals from user.')

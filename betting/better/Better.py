@@ -1,3 +1,4 @@
+from betting.brokers.doxxbet.doxxbet import Doxxbet
 import logging
 from betting.brokers.ifortuna.ifortuna import IFortuna
 from multiprocessing import Pool
@@ -24,6 +25,8 @@ class Better:
     def _init_broker(self, broker: str):
         if broker == 'IFortuna':
             return IFortuna()
+        elif broker == 'Doxxbet':
+            return Doxxbet()
         else:
             print('Init Better Error: broker not found.')
 

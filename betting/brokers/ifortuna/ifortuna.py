@@ -193,9 +193,7 @@ class IFortuna():
     def _select_bet(self, driver: WebDriver, bet_xpath: str, log_prefix: str = '') -> None:
         logger.info(f'{self.__str__()}: {log_prefix}selecting bet...')
         bet_button = driver.find_element(By.XPATH, bet_xpath)
-        print('scrolling')
         driver.execute_script("arguments[0].scrollIntoView();", bet_button)
-        print('scrolled')
         bet_button.click()
 
     def _deselect_bet(self, driver: WebDriver, bet_xpath: str) -> None:

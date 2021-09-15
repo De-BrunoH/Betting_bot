@@ -17,7 +17,7 @@ from selenium.webdriver.remote.webelement import WebElement
 import time
 from logger.bet_logger import setup_logger
 
-logger = setup_logger('ifortuna')
+logger = setup_logger('doxxbet')
 
 
 class Doxxbet():
@@ -30,7 +30,7 @@ class Doxxbet():
         return 'Doxxbet'
 
     def find_event(self, event: str) -> dict:
-        logging.info(f'{self.__str__()}: Finding event {event}.')
+        logger.info(f'{self.__str__()}: Finding event {event}.')
         driver = setup_driver()
         driver.get(self.base_link)
         try:
@@ -57,9 +57,9 @@ class Doxxbet():
     def _find_similar_events(self, driver: WebDriver, event: str) -> int:
         self._search_for_event(driver, event)
         wait_for_search = WebDriverWait(driver, 0.5, 0.1)
-        similar_events = wait_for_search.until(ec.presence_of_all_elements_located((By.XPATH, '//*[@id="app"]//div' + 
-            '[@class="fortuna_search_bar__running fortuna_search_bar_matches"]/div[a[@class="fortuna_search_bar_matches__match_info_wrapper"]]')))
-        return len(similar_events)
+        similar_events = wait_for_search.until(ec.presence_of_all_elements_located(
+            (By.XPATH, '//aside[@id="modal-search"]//div[@id="mCSB_1_container"]/div/div/a')))
+        return len(similar_events) if len(similar_events) <= 10 else 10
     
     def bet(self, account: dict, bet_info: dict, search_position: int) -> dict:
         event = bet_info['event']
@@ -68,11 +68,19 @@ class Doxxbet():
             driver = setup_driver()
             driver.get(self.base_link)
             self._login(driver, account['name'], account['password'])
+            # v ifortuna nie je
+            self._wait_for_login(driver)
+            # =================
             self._wait_for_popup_close(driver)
+            # v ifotuna nie je
+            self._resolve_duplicate_login(driver)
+            # =================
             self._navigate_to_event(driver, bet_info['event'], search_position)
             confirmation_img, bet_rate = self._place_bet(driver, bet_info, account['bet_amount'])
             bet_report = create_bet_result_report(bet_info, account, bet_rate, confirmation_img)
-            self._logout(driver)
+            '''self._logout(driver)'''
+            print('done')
+            sleep(30)
             return bet_report
         except BetTimeoutException as bte:
             return create_bet_exception_report(bte)
@@ -85,19 +93,12 @@ class Doxxbet():
                     self.__str__(), 
                     bet_info['event'], 
                     exception_img, 
-                    str(e)
+                    str(type(e)) + ':' + str(e)
                 )
             )
         finally:
             logger.info(f'{self.__str__()}: Betting on event {event} ended.')
             driver.close()
-
-    def _wait_for_popup_close(self, driver: WebDriver) -> None:
-        logger.info(f'{self.__str__()}: Waiting for popup close...')
-        wait_for_popup_close = WebDriverWait(driver, 20, 0.1)
-        wait_for_popup_close.until(ec.presence_of_element_located(
-            (By.XPATH, '//div[@class="simple_modal simple_modal--hidden simple_modal--with_overlay ' + 
-            'simple_modal--default  user-message user-message--show user-message__centered  responsible-gaming"]')))
 
     def _send_keys_reliably(self, input_field, keys: str) -> None:
         while input_field.get_property('value') != keys:
@@ -109,39 +110,79 @@ class Doxxbet():
         logger.info(f'{self.__str__()}: Logging in...')
         wait_for_login_button = WebDriverWait(driver, 3)
         login_banner = wait_for_login_button.until(ec.visibility_of_element_located(
-            (By.XPATH, '//*[@id="app"]//div[normalize-space(text())="Prihlásiť"]'))
+            (By.XPATH, '//header[@class="main__header main__header--sticked lng-switcher-hide"]//a[@href="#modal-login"]'))
         )
         login_banner.click()
         wait_login_form = WebDriverWait(driver, 2)
         login_name_field = wait_login_form.until(ec.visibility_of_element_located(
-            (By.XPATH, '//*[@id="app"]//input[@name="username"]'))
+            (By.XPATH, '//aside[@id="modal-login"]//input[@id="modal-login-email"]'))
         )
-        password_field = driver.find_element_by_xpath('//*[@id="app"]//input[@name="password"]')
+        password_field = driver.find_element_by_xpath('//aside[@id="modal-login"]//input[@id="modal-login-password"]')
         self._send_keys_reliably(login_name_field, login_name)
         self._send_keys_reliably(password_field, password)
-        login_button = driver.find_element_by_xpath('//*[@id="app"]//button[normalize-space(text())="Prihlásiť"]')
+        login_button = driver.find_element_by_xpath('//aside[@id="modal-login"]//button[@id="login-submit-button"]')
         login_button.click()
+
+    def _resolve_duplicate_login(self, driver: WebDriver) -> None:
+        logger.info(f'{self.__str__()}: Resolving duplicate login...')
+        try:
+            wait = WebDriverWait(driver, 1.5, 0.1)
+            close_button = wait.until(ec.presence_of_element_located(
+                (By.XPATH, '//aside[@id="modal-standart"]//button[@class="uk-modal-close uk-close"]')))
+            print('ble')
+            close_button.click()
+            wait = WebDriverWait(driver, 2, 0.1)
+            close_button = wait.until(ec.presence_of_element_located(
+                (By.XPATH, '//aside[@id="modal-standart and @style="display: block; overflow-y: scroll;"]')))
+        except:
+            print('neni duplicate banner')
+            return
+        
+    def _wait_for_login(self, driver: WebDriver) -> None:
+        logger.info(f'{self.__str__()}: Waiting for login...')
+        wait = WebDriverWait(driver, 10, 0.1)
+        wait.until_not(ec.visibility_of_element_located(
+            (By.XPATH, '//aside[@id="modal-login" and @style="display: block; overflow-y: scroll;"]')))
+
+    def _wait_for_popup_close(self, driver: WebDriver) -> None:
+        logger.info(f'{self.__str__()}: Waiting for popup close...')
+        # v ifortuna nie je
+        wait_for_popup_open = WebDriverWait(driver, 20, 0.1)
+        wait_for_popup_open.until_not(ec.presence_of_element_located(
+            (By.XPATH, '//aside[@id="casino-client-information-modal" and @style="display: none; overflow-y: scroll;"]')))
+        # =================
+        wait_for_popup_close = WebDriverWait(driver, 20, 0.1)
+        wait_for_popup_close.until_not(ec.presence_of_element_located(
+            (By.XPATH, '//aside[@id="casino-client-information-modal" and @style="display: block; overflow-y: scroll;"]')))
+        
 
     def _navigate_to_event(self, driver: WebDriver, event: str, search_position: int) -> None:
         logger.info(f'{self.__str__()}: Navigating to event...')
         self._search_for_event(driver, event)
-        wait_for_search = WebDriverWait(driver, 0.5, 0.1)
         try:
-            search_result = wait_for_search.until(ec.visibility_of_element_located(
-                (By.XPATH, '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]' + 
-                f'/div[{search_position}]/a[@class="fortuna_search_bar_matches__match_info_wrapper"]')))
-            search_result.click()
-        except:
+            # v ifortuna nie je
+            search_results = driver.find_elements_by_xpath('//aside[@id="modal-search"]//a[@class="offer__row ng-scope"]')
+            search_results[search_position - 1].click()
+            # ================
+        except Exception as e:
+            print(e)
             raise Exception(f'Event name can be wrong, or this event is not available at {self.__str__()} broker.')
 
     def _search_for_event(self, driver: WebDriver, event: str) -> None:
         logger.info(f'{self.__str__()}: Searching for event...')
-        search_field_button = driver.find_element_by_xpath('//*[@id="app"]//div[@class="view-menu__search-wrapper"]/button')
+        search_field_button = driver.find_element_by_xpath(
+            '//header[@class="main__header main__header--sticked lng-switcher-hide"]//div[@class="pull-right search-button cursor-pointer tooltipstered"]')
         search_field_button.click()
         wait_for_search_field = WebDriverWait(driver, 2)
-        search_field = wait_for_search_field.until(ec.visibility_of_element_located((By.XPATH, '//*[@id="search-input"]')))
+        search_field = wait_for_search_field.until(ec.visibility_of_element_located(
+            (By.XPATH, '//aside[@id="modal-search"]//input')))
         parsed_event = event.split('|')
         self._send_keys_reliably(search_field, parsed_event[0])
+        # v ifortuna nebolo (aby bol lepsi screenshot)
+        wait_for_result_display = WebDriverWait(driver, 5, 0.1)
+        wait_for_result_display.until(ec.presence_of_element_located(
+            (By.XPATH, '//aside[@id="modal-search"]//div[@class="search-result-group enable_animations"]')))
+        # ==================
 
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
         logger.info(f'{self.__str__()}: placing bet...')
@@ -245,9 +286,6 @@ class Doxxbet():
         bet_button = driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_summary__submit"]/button')
         select_rate_change = Select(driver.find_element_by_xpath('//*[@id="app_ticket"]//div[@class="ticket_header__odds_accept"]//select'))
         select_rate_change.select_by_value("UPWARD")
-        # not sure about this ci to sposobuje doublespending alebo nie
-        '''if bet_button.text.strip() == 'PRIJAŤ ZMENY':
-            bet_button.click()'''
         return bet_button   
 
     def _logout(self, driver: WebDriver) -> None:

@@ -13,7 +13,7 @@ if __name__ == '__main__':
 '''
 $bet
 futbal 
-Petržalka
+Liver
 Zápas: presný počet gólov
 2
 '''
