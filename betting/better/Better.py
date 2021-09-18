@@ -74,7 +74,7 @@ class Better:
             bet_info = self._process_bet_command(command)
         except Exception as e:
             logger.info('Received command is has incorrect format.')
-            self.bet_cog.bot.stdout.send(e)
+            async_to_sync(self.bet_cog.bot.stdout.send)(e)
         return bet_info
     
     def _status_messages_update(self, message_data: dict) -> None:
