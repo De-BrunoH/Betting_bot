@@ -1,7 +1,7 @@
 import logging
 from betting.bet_exceptions.BetTimeoutException import BetTimeoutException
 from selenium.webdriver.safari import webdriver
-from betting.better.better_config import BET_WAIT_TIME, BOOKIE_DECISION_WAIT, MIN_BET_RATE
+from betting.better.better_config import BET_WAIT_TIME, BOOKIE_DECISION_WAIT, BROKER_COMMANDS, MIN_BET_RATE
 from betting.bet_exceptions.BetRuntimeException import BetRuntimeException
 from betting.bet_exceptions.EventNotFoundException import EventNotFoundException
 from typing import Optional, Tuple
@@ -69,9 +69,10 @@ class IFortuna():
             driver.get(self.base_link)
             self._login(driver, account['name'], account['password'])
             self._wait_for_popup_close(driver)
-            self._navigate_to_event(driver, bet_info['event'], search_position)
-            confirmation_img, bet_rate = self._place_bet(driver, bet_info, account['bet_amount'])
-            bet_report = create_bet_result_report(bet_info, account, bet_rate, confirmation_img)
+            self._navigate_to_event(driver, bet_info, search_position)
+            translated_bet = self.translate_bet(bet_info)
+            confirmation_img, bet_rate = self._place_bet(driver, translated_bet, account['bet_amount'])
+            bet_report = create_bet_result_report(translated_bet, account, bet_rate, confirmation_img)
             self._logout(driver)
             return bet_report
         except BetTimeoutException as bte:
@@ -91,6 +92,41 @@ class IFortuna():
         finally:
             logger.info(f'{self.__str__()}: Betting on event {event} ended.')
             driver.close()
+
+    def translate_bet(self, bet_info: dict) -> dict:
+        return {
+            'event': bet_info['event'],
+            'bet': BROKER_COMMANDS[self.__str__()][bet_info['bet']],
+            'specs': self.translate_specs(bet_info),
+            'sport': bet_info['sport'],
+            'home': bet_info['home'],
+            'away': bet_info['away']
+        }
+
+    def translate_specs(self, bet_info: dict) -> str:
+        group = bet_info['bet']
+        specs = bet_info['specs']
+        if group == 'goly':
+            value = specs[1:]
+            if specs[0] == '+':
+                return f'Viac ako ({value})'
+            return f'Menej ako ({value})'
+        elif group == 'handicap':
+            team, value = specs.split('|')
+            if team == '1':
+                return bet_info['home'] + f' ({value})'
+            return bet_info['away'] + f' ({value})'        
+        elif group == 'vysledok':
+            if specs == '1':
+                return bet_info['home']
+            elif specs == '2':
+                return bet_info['away'] 
+            else:
+                return 'Remíza'
+        else:
+            print('pruser v translate')
+            raise Exception
+
 
     def _wait_for_popup_close(self, driver: WebDriver) -> None:
         logger.info(f'{self.__str__()}: Waiting for popup close...')
@@ -122,15 +158,19 @@ class IFortuna():
         login_button = driver.find_element_by_xpath('//*[@id="app"]//button[normalize-space(text())="Prihlásiť"]')
         login_button.click()
 
-    def _navigate_to_event(self, driver: WebDriver, event: str, search_position: int) -> None:
+    def _navigate_to_event(self, driver: WebDriver, bet_info: dict, search_position: int) -> None:
         logger.info(f'{self.__str__()}: Navigating to event...')
-        self._search_for_event(driver, event)
+        self._search_for_event(driver, bet_info['event'])
         wait_for_search = WebDriverWait(driver, 0.5, 0.1)
         try:
+            search_element_xpath = '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]' + \
+                f'/div[{search_position}]/a[@class="fortuna_search_bar_matches__match_info_wrapper"]'
             search_result = wait_for_search.until(ec.visibility_of_element_located(
-                (By.XPATH, '//*[@id="app"]//div[@class="fortuna_search_bar__running fortuna_search_bar_matches"]' + 
-                f'/div[{search_position}]/a[@class="fortuna_search_bar_matches__match_info_wrapper"]')))
+                (By.XPATH, search_element_xpath)))
+            bet_info['home'] = driver.find_element_by_xpath(search_element_xpath + '/div/div[1]').get_attribute('title')
+            bet_info['away'] = driver.find_element_by_xpath(search_element_xpath + '/div/div[2]').get_attribute('title')
             search_result.click()
+
         except:
             raise Exception(f'Event name can be wrong, or this event is not available at {self.__str__()} broker.')
 

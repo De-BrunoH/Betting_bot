@@ -183,6 +183,7 @@ class Doxxbet():
     def _place_bet(self, driver: WebDriver, bet_info: dict, bet_amount: int) -> Tuple[str, float]:
         logger.info(f'{self.__str__()}: placing bet...')
         bet_xpath, bet_rate_xpath = self._create_ticket_xpaths(bet_info)
+        self._select_active_bets_tab(driver)
         time_now = time.time()
         timeout = time_now + BET_WAIT_TIME       
         ticket_denied_count = 0
@@ -202,6 +203,13 @@ class Doxxbet():
             '', 
             'Bet did not meet standards in time.'
         )
+
+    def _select_active_bets_tab(self, driver) -> None:
+        sleep(5) # musi byt 5 sekung
+        wait_for_avtive_bets = WebDriverWait(driver, 5, 0.1)
+        active_bets_tab = wait_for_avtive_bets.until(ec.presence_of_element_located(
+            (By.XPATH, '//div[@class="tabs--match ng-scope"]/nav/ul/li[1]/a')))
+        active_bets_tab.click()
 
     def _create_ticket_xpaths(self, bet_info: dict) -> Tuple[str, str, str]:
         bet_xpath = '//div[@id="sportbook-main-container"]//div[@class="od__table"]//div[div[span[@title="' + bet_info['bet'] + \
@@ -230,7 +238,7 @@ class Doxxbet():
     def _select_bet(self, driver: WebDriver, bet_xpath: str, log_prefix: str = '') -> None:
         logger.info(f'{self.__str__()}: {log_prefix}selecting bet...')
         bet_button = driver.find_element(By.XPATH, bet_xpath)
-        driver.execute_script("arguments[0].scrollIntoView();", bet_button)
+        driver.execute_script("arguments[0].scrollIntoViewIfNeeded(true);", bet_button)
         bet_button.click()
 
     def _deselect_bet(self, driver: WebDriver, bet_xpath: str) -> None:
@@ -242,6 +250,7 @@ class Doxxbet():
             self._select_bet(driver, bet_xpath)
             send_ticket_button = self._setup_ticket_form(driver, bet_amount)
             logger.info(f'{self.__str__()}: sending ticket...')
+            sleep(2) # msui byt wait aby to zanamenalo zmenu v bet amount
             send_ticket_button.click()
             return self._ticket_approved(driver)
         except:
@@ -268,9 +277,9 @@ class Doxxbet():
             '//div[@ng-controller="TicketController as tc"]' +
             '//div[@ng-if="tc.ticketSyncing"]')))
         try:
-            wait_for_decision = WebDriverWait(driver, 5, 0.1)
+            wait_for_decision = WebDriverWait(driver, 3, 0.1)
             wait_for_decision.until(ec.presence_of_element_located((By.XPATH, 
-                '//aside[@id="modal-ticket" and @style="display: block; overflow-y: scroll;"]' + 
+                '//aside[@id="modal-ticket" and @class="modal--ticket  uk-modal uk-open"]' + 
                 '//span[normalize-space(text()) = Schválený]')))
             print('prijaty')
             return True
@@ -280,32 +289,14 @@ class Doxxbet():
         
     def _setup_ticket_form(self, driver: WebDriver, bet_amount: int) -> WebElement:
         logger.info(f'{self.__str__()}: setting up the ticket...')
-        print('setting up the ticket')
+        sleep(3)
         wait_bet_window = WebDriverWait(driver, 3)
         amount_field = wait_bet_window.until(ec.visibility_of_element_located(
-            (By.XPATH, '//aside[@class="main__right is--scrollable mCustomScrollbar _mCS_17"]//div[@class="ticket__stake"]/input')))
-        print('found amount field')
-        select_rate_change = driver.find_element_by_xpath(
-            '//aside[@class="main__right is--scrollable mCustomScrollbar _mCS_17"]' +
-            '//div[@class="ticket__stake"]//div[@class="ticket__bet-options uk-accordion"]/div[1]'
-        )
-        print('found rate_change menu')
-        select_rate_change.click()
-        print('clicked rate_change menu')
+            (By.XPATH, '//div[@ng-class="{ \'hidden\': Ticket.Odds.length == 0 }" and not(@class="hidden")]/div[@class="ticket__stake"]/input')))
         self._send_keys_reliably(amount_field, bet_amount)
-        only_higher_odds = driver.find_element_by_xpath(
-            '//aside[@class="main__right is--scrollable mCustomScrollbar _mCS_17"]' +
-            '//div[@class="ticket__stake"]//div[contains(@class, "ticket__bet-options")]' +
-            '//label[normalize-space(text()) = "Prijať len zmenu kurzu nahor"]'
-        )
-        print('found higher change')
-        only_higher_odds.click()
-        print('clicked higher change')
-        bet_button = driver.find_element_by_xpath(
-            '//aside[@class="main__right is--scrollable mCustomScrollbar _mCS_17"]//div[@class="ticket__footer uk-vertical-align ng-scope"]/button')
-        print('found bet button')
-        driver.execute_script("arguments[0].scrollIntoView();", bet_button)
-        print('scrolled to bet button')
+        wait_bet_button = WebDriverWait(driver, 3)
+        bet_button = wait_bet_button.until(ec.visibility_of_element_located(
+            (By.XPATH, '//div[@ng-controller="TicketController as tc"]/div[@class="ticket__footer uk-vertical-align ng-scope"]/button')))
         return bet_button   
 
     def _logout(self, driver: WebDriver) -> None:

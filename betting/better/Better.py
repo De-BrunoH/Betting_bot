@@ -6,6 +6,7 @@ from typing import List
 from betting.better.better_config import ALLOWED_BETS_PER_SPORT, ALLOWED_SPORTS, BROKERS_ACCOUNTS
 from asgiref.sync import async_to_sync
 from logger.bet_logger import setup_logger
+import re
 
 logger = setup_logger('better')
 
@@ -94,6 +95,20 @@ class Better:
             raise Exception('Error: Sport not supported.')
         if bet not in ALLOWED_BETS_PER_SPORT[sport]:
             raise Exception('Error: Bet type not supported for this sport.')
+        if not self._check_bet_specs(bet, specs):
+            raise Exception('Error: Invalid specs part of command.')
         return {'event': event, 'bet': bet, 'specs': specs, 'sport': sport}
+
+    def _check_bet_specs(self, group: str, specs: str) -> bool:
+        if group == 'goly':
+            pattern_half = '^[+-][0-9]\.5$'
+            pattern_whole = '^[+-][0-9]$'
+            return re.match(pattern_half, specs) or re.match(pattern_whole, specs)
+        elif group == 'handicap':
+            pattern = '^[12]|[+-][0-9]\.5$'
+            return re.match(pattern, specs)
+        elif group == 'vysledok':
+            return specs in ['0', '1', '2']
+        return False
 
     
