@@ -127,7 +127,6 @@ class IFortuna():
             print('pruser v translate')
             raise Exception
 
-
     def _wait_for_popup_close(self, driver: WebDriver) -> None:
         logger.info(f'{self.__str__()}: Waiting for popup close...')
         wait_for_popup_close = WebDriverWait(driver, 20, 0.1)
